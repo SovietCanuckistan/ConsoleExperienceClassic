@@ -285,6 +285,32 @@ function CE_ClickCursor(mouseButton)
             local step = element:GetValueStep() or ((max - min) / 10)
             element:SetValue(current - step)
         end
+    elseif buttonName and string.find(buttonName, "ContainerFrame%d+Item%d+") then
+        -- Container items: "Select" (A button) should NOT pick up the item
+        -- Only "Bind" (X button via CE_PickupItem) should pick it up
+        -- So we skip the regular click for container items on left click
+        if mouseButton == "LeftButton" then
+            -- Just refresh tooltip, don't click (which might pick up the item)
+            CE_Debug("Select action on container item - skipping click to prevent pickup")
+        elseif mouseButton == "RightButton" then
+            -- Right click (B button) should use the item directly without picking up
+            -- Use CE_UseItem which uses the item without picking it up
+            CE_UseItem()
+            return -- Return early to skip the regular refresh/tooltip logic
+        end
+    elseif buttonName and string.find(buttonName, "Character[A-Za-z0-9]+Slot") then
+        -- Character equipment slots: "Select" (A button) should NOT pick up the item
+        -- Only "Bind" (X button via CE_PickupItem) should pick it up
+        -- So we skip the regular click for equipment slots on left click
+        if mouseButton == "LeftButton" then
+            -- Just refresh tooltip, don't click (which might pick up the item)
+            CE_Debug("Select action on equipment slot - skipping click to prevent pickup")
+        elseif mouseButton == "RightButton" then
+            -- Right click (B button) should unequip directly without picking up
+            -- Use CE_UnequipItem which puts item directly in backpack
+            CE_UnequipItem()
+            return -- Return early to skip the regular refresh/tooltip logic
+        end
     elseif element.Click then
         -- Regular button click
         element:Click(mouseButton)
@@ -326,6 +352,69 @@ function CE_DeleteItem()
             if CursorHasItem() then
                 DeleteCursorItem()
             end
+            
+            -- Clear cursor state after deletion (item is destroyed, not placed)
+            -- This prevents the placement frame from showing
+            if CursorHasItem() or CursorHasSpell() then
+                ClearCursor()
+            end
+            
+            -- Clear fake cursor texture if it exists
+            if Cursor and Cursor.ClearHeldItemTexture then
+                Cursor:ClearHeldItemTexture()
+            end
+            
+            -- Ensure placement frame is hidden since item was deleted
+            if ConsoleExperience.placement and ConsoleExperience.placement.Hide then
+                ConsoleExperience.placement:Hide()
+            end
+            
+            -- Refresh frame state
+            if Cursor then
+                Cursor:RefreshFrame()
+            end
+        end
+    end
+end
+
+function CE_UseItem()
+    local Cursor = ConsoleExperience.cursor
+    local button = Cursor.navigationState.currentButton
+    
+    if not button then return end
+    
+    local buttonName = button:GetName()
+    if not buttonName then return end
+    
+    -- Check if this is a container item
+    if string.find(buttonName, "ContainerFrame%d+Item%d+") then
+        local _, _, bagID = string.find(buttonName, "ContainerFrame(%d+)")
+        if bagID then
+            bagID = tonumber(bagID) - 1
+            local slotID = button:GetID()
+            
+            -- Use the item directly without picking it up
+            UseContainerItem(bagID, slotID)
+            
+            -- Ensure cursor is clear and placement frame is hidden
+            if CursorHasItem() or CursorHasSpell() then
+                ClearCursor()
+            end
+            
+            -- Clear fake cursor texture if it exists
+            if Cursor and Cursor.ClearHeldItemTexture then
+                Cursor:ClearHeldItemTexture()
+            end
+            
+            -- Ensure placement frame is hidden
+            if ConsoleExperience.placement and ConsoleExperience.placement.Hide then
+                ConsoleExperience.placement:Hide()
+            end
+            
+            -- Refresh frame state
+            if Cursor then
+                Cursor:RefreshFrame()
+            end
         end
     end
 end
@@ -345,6 +434,27 @@ function CE_UnequipItem()
         if slotId then
             PickupInventoryItem(slotId)
             PutItemInBackpack()
+            
+            -- Clear cursor state after unequipping (item goes directly to backpack)
+            -- This prevents the placement frame from showing
+            if CursorHasItem() or CursorHasSpell() then
+                ClearCursor()
+            end
+            
+            -- Clear fake cursor texture if it exists
+            if Cursor and Cursor.ClearHeldItemTexture then
+                Cursor:ClearHeldItemTexture()
+            end
+            
+            -- Ensure placement frame is hidden since item went directly to backpack
+            if ConsoleExperience.placement and ConsoleExperience.placement.Hide then
+                ConsoleExperience.placement:Hide()
+            end
+            
+            -- Refresh frame state
+            if Cursor then
+                Cursor:RefreshFrame()
+            end
         end
     end
 end

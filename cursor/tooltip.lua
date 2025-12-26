@@ -144,11 +144,11 @@ Tooltip.frameActions = {}
 
 function Tooltip:Initialize()
     self.frameActions = {
-        -- Container (bag) items - B = Use item (right click)
+        -- Container (bag) items - A = Select, X = Bind, B = Use, Y = Drop
         {
             pattern = "ContainerFrame%d+Item%d+",
-            actions = {{icon = "a", prompt = "Select"}, {icon = "b", prompt = "Use"}},
-            bindings = {{key = "1", action = "CE_CURSOR_CLICK_LEFT"}, {key = "4", action = "CE_CURSOR_CLICK_RIGHT"}}
+            actions = {{icon = "a", prompt = "Select"}, {icon = "x", prompt = "Bind"}, {icon = "b", prompt = "Use"}, {icon = "y", prompt = "Drop"}},
+            bindings = {{key = "1", action = "CE_CURSOR_CLICK_LEFT"}, {key = "2", action = "CE_CURSOR_PICKUP"}, {key = "4", action = "CE_CURSOR_CLICK_RIGHT"}, {key = "3", action = "CE_CURSOR_DELETE"}}
         },
         -- Character equipment slots - B = Unequip
         {
