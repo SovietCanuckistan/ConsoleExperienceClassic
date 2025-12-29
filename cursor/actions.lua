@@ -218,7 +218,14 @@ function CE_ClickCursor(mouseButton)
                 local hasSlotAction = HasAction(actionSlot)
                 
                 if hasCursorItem then
-                    -- Place item from cursor into slot
+                    -- Cursor has item - place it (will swap if slot has item)
+                    -- Get slot texture BEFORE placing (in case we swap)
+                    local slotItemTexture = nil
+                    if hasSlotAction then
+                        slotItemTexture = GetActionTexture(actionSlot)
+                    end
+                    
+                    -- Place item from cursor into slot (will swap if slot has item)
                     PlaceAction(actionSlot)
                     CE_Debug("Placed item in action slot " .. actionSlot)
                     
@@ -232,9 +239,18 @@ function CE_ClickCursor(mouseButton)
                         ConsoleExperience.actionbars:UpdateAllButtons()
                     end
                     
-                    -- Clear fake cursor held item
-                    if ConsoleExperience.cursor then
-                        ConsoleExperience.cursor:ClearHeldItemTexture()
+                    -- Update fake cursor based on result
+                    if CursorHasItem() or CursorHasSpell() then
+                        -- Item swap occurred - show the swapped item on fake cursor
+                        if slotItemTexture and ConsoleExperience.cursor and ConsoleExperience.cursor.SetHeldItemTexture then
+                            ConsoleExperience.cursor:SetHeldItemTexture(slotItemTexture)
+                            CE_Debug("Swapped items - showing swapped item on fake cursor")
+                        end
+                    else
+                        -- Item was placed (slot was empty) - clear fake cursor
+                        if ConsoleExperience.cursor and ConsoleExperience.cursor.ClearHeldItemTexture then
+                            ConsoleExperience.cursor:ClearHeldItemTexture()
+                        end
                     end
                 elseif hasSlotAction then
                     -- Pickup item from slot (only if slot has action and cursor is empty)
