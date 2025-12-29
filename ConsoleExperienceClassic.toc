@@ -8,6 +8,8 @@
 ## SavedVariablesPerCharacter: ConsoleExperienceDB
 
 main.lua
+locale\locale.xml
+locale\locale.lua
 keybindings.lua
 actionbars\bars.lua
 actionbars\placement.lua

@@ -15,7 +15,7 @@ local Config = ConsoleExperience.config
 Config.DEFAULTS = {
     debugEnabled = false,
     -- Interface settings
-    crosshairEnabled = false,
+    crosshairEnabled = true,
     crosshairX = 0,
     crosshairY = 0,
     crosshairSize = 24,
@@ -32,6 +32,8 @@ Config.DEFAULTS = {
     keyboardEnabled = true,  -- If true, show virtual keyboard when chat edit box is visible
     -- Keybinding settings
     useAForJump = true,  -- If true, A button (key 1) is bound to JUMP instead of CE_ACTION_1
+    -- Locale settings
+    language = nil,  -- nil = use game locale, otherwise "enUS", "deDE", etc.
 }
 
 -- ============================================================================
@@ -54,6 +56,11 @@ function Config:InitializeDB()
         if ConsoleExperienceDB.config[key] == nil then
             ConsoleExperienceDB.config[key] = defaultValue
         end
+    end
+    
+    -- Initialize locale if available
+    if ConsoleExperience.locale then
+        ConsoleExperience.locale:Initialize()
     end
     
     -- Apply debug setting to global variable
@@ -159,7 +166,8 @@ function Config:CreateMainFrame()
     -- Title text
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", frame, "TOP", 0, -15)
-    title:SetText("Console Experience")
+    -- Title will be set after locale is initialized, store reference
+    frame.titleText = title
     
     -- Close button
     local closeButton = CreateFrame("Button", "ConsoleExperienceConfigCloseButton", frame, "UIPanelCloseButton")
@@ -315,6 +323,13 @@ function Config:CreateMainFrame()
     -- Store reference
     self.frame = frame
     
+    -- Set title text after locale is available
+    if frame.titleText then
+        local Locale = ConsoleExperience.locale
+        local T = Locale and Locale.T or function(key) return key end
+        frame.titleText:SetText(T("Console Experience"))
+    end
+    
     -- Add to special frames so Escape closes it
     table.insert(UISpecialFrames, "ConsoleExperienceConfigFrame")
     
@@ -342,6 +357,8 @@ end
 function Config:CreateSidebarButtons()
     local sidebar = self.frame.sidebar
     self.sidebarButtons = {}
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     for i, section in ipairs(self.SECTIONS) do
         local buttonName = "CEConfigSidebar" .. section.id
@@ -361,10 +378,10 @@ function Config:CreateSidebarButtons()
         })
         button:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
         
-        -- Button text
+        -- Button text (use translation)
         local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         text:SetPoint("CENTER", button, "CENTER", 0, 0)
-        text:SetText(section.name)
+        text:SetText(T(section.name))
         button.text = text
         
         -- Store section id
@@ -438,6 +455,8 @@ end
 
 function Config:CreateGeneralSection()
     local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     local section = CreateFrame("Frame", nil, content)
     section:SetAllPoints(content)
@@ -446,17 +465,17 @@ function Config:CreateGeneralSection()
     -- Title
     local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
-    title:SetText("General Settings")
+    title:SetText(T("General Settings"))
     
     -- Description
     local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(280)
     desc:SetJustifyH("LEFT")
-    desc:SetText("Configure general addon settings.")
+    desc:SetText(T("Configure general addon settings."))
     
     -- Debug checkbox (saved to DB)
-    local debugCheck = self:CreateCheckbox(section, "Enable Debug Output", 
+    local debugCheck = self:CreateCheckbox(section, T("Enable Debug Output"), 
         function() return Config:Get("debugEnabled") end,
         function(checked)
             Config:Set("debugEnabled", checked)
@@ -468,16 +487,65 @@ function Config:CreateGeneralSection()
         end)
     debugCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
     
+    -- Language selector
+    local langLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    langLabel:SetPoint("TOPLEFT", debugCheck, "BOTTOMLEFT", 0, -20)
+    langLabel:SetText(T("Language") .. ":")
+    
+    -- Language dropdown (simple button that cycles through languages)
+    local langButton = CreateFrame("Button", "CEConfigLanguageButton", section, "UIPanelButtonTemplate")
+    langButton:SetWidth(120)
+    langButton:SetHeight(22)
+    langButton:SetPoint("LEFT", langLabel, "RIGHT", 10, 0)
+    
+    local function UpdateLanguageButton()
+        local currentLang = Config:Get("language") or GetLocale() or "enUS"
+        local langName = Locale and Locale:GetLanguageName(currentLang) or currentLang
+        langButton:SetText(langName)
+    end
+    
+    langButton:SetScript("OnClick", function()
+        if not Locale then return end
+        local available = Locale:GetAvailableLanguages()
+        if table.getn(available) == 0 then return end
+        
+        local currentLang = Config:Get("language") or GetLocale() or "enUS"
+        local currentIndex = 1
+        for i, lang in ipairs(available) do
+            if lang == currentLang then
+                currentIndex = i
+                break
+            end
+        end
+        
+        -- Cycle to next language
+        local nextIndex = currentIndex + 1
+        if nextIndex > table.getn(available) then
+            nextIndex = 1
+        end
+        
+        local nextLang = available[nextIndex]
+        Locale:SetLanguage(nextLang)
+        UpdateLanguageButton()
+        
+        -- Reload UI message
+        StaticPopup_Show("CE_RELOAD_UI")
+    end)
+    
+    UpdateLanguageButton()
+    
     -- Version info
     local version = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     version:SetPoint("BOTTOMLEFT", section, "BOTTOMLEFT", 15, 15)
-    version:SetText("Version: 1.0")
+    version:SetText(T("Version") .. ": 1.0")
     
     self.contentSections["general"] = section
 end
 
 function Config:CreateInterfaceSection()
     local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     local section = CreateFrame("Frame", nil, content)
     section:SetAllPoints(content)
@@ -486,17 +554,17 @@ function Config:CreateInterfaceSection()
     -- Title
     local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
-    title:SetText("Interface Settings")
+    title:SetText(T("Interface Settings"))
     
     -- Description
     local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(280)
     desc:SetJustifyH("LEFT")
-    desc:SetText("Configure interface elements.")
+    desc:SetText(T("Configure interface elements."))
     
     -- Enable Crosshair checkbox
-    local crosshairCheck = self:CreateCheckbox(section, "Enable Crosshair", 
+    local crosshairCheck = self:CreateCheckbox(section, T("Enable Crosshair"), 
         function() return Config:Get("crosshairEnabled") end,
         function(checked)
             Config:Set("crosshairEnabled", checked)
@@ -512,7 +580,7 @@ function Config:CreateInterfaceSection()
     -- Crosshair X Position
     local xLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     xLabel:SetPoint("TOPLEFT", crosshairCheck, "BOTTOMLEFT", 0, -20)
-    xLabel:SetText("Crosshair X Offset:")
+    xLabel:SetText(T("Crosshair X Offset") .. ":")
     
     local xEditBox = self:CreateEditBox(section, 60, 
         function() return tostring(Config:Get("crosshairX")) end,
@@ -526,7 +594,7 @@ function Config:CreateInterfaceSection()
     -- Crosshair Y Position
     local yLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     yLabel:SetPoint("TOPLEFT", xLabel, "BOTTOMLEFT", 0, -15)
-    yLabel:SetText("Crosshair Y Offset:")
+    yLabel:SetText(T("Crosshair Y Offset") .. ":")
     
     local yEditBox = self:CreateEditBox(section, 60, 
         function() return tostring(Config:Get("crosshairY")) end,
@@ -540,7 +608,7 @@ function Config:CreateInterfaceSection()
     -- Crosshair Size
     local sizeLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     sizeLabel:SetPoint("TOPLEFT", yLabel, "BOTTOMLEFT", 0, -15)
-    sizeLabel:SetText("Crosshair Size:")
+    sizeLabel:SetText(T("Crosshair Size") .. ":")
     
     local sizeEditBox = self:CreateEditBox(section, 60, 
         function() return tostring(Config:Get("crosshairSize")) end,
@@ -558,13 +626,15 @@ function Config:CreateInterfaceSection()
     helpText:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -20)
     helpText:SetWidth(260)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels.")
+    helpText:SetText(T("X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels."))
     
     self.contentSections["interface"] = section
 end
 
 function Config:CreateKeybindingsSection()
     local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     local section = CreateFrame("Frame", nil, content)
     section:SetAllPoints(content)
@@ -573,17 +643,17 @@ function Config:CreateKeybindingsSection()
     -- Title
     local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
-    title:SetText("Keybinding Settings")
+    title:SetText(T("Keybinding Settings"))
     
     -- Description
     local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(300)
     desc:SetJustifyH("LEFT")
-    desc:SetText("Configure special keybindings for controller-style gameplay.")
+    desc:SetText(T("Configure special keybindings for controller-style gameplay."))
     
     -- Use A for Jump checkbox
-    local jumpCheck = self:CreateCheckbox(section, "Use A button for Jump", 
+    local jumpCheck = self:CreateCheckbox(section, T("Use A button for Jump"), 
         function() return Config:Get("useAForJump") end,
         function(checked)
             Config:Set("useAForJump", checked)
@@ -632,19 +702,19 @@ function Config:CreateKeybindingsSection()
     helpText:SetPoint("TOPLEFT", jumpCheck, "BOTTOMLEFT", 0, -10)
     helpText:SetWidth(300)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("When enabled, pressing the A button (key 1) will jump. When disabled, it will use whatever action is in slot 1 of the action bar.")
+    helpText:SetText(T("When enabled, pressing the A button (key 1) will jump. When disabled, it will use whatever action is in slot 1 of the action bar."))
     
     -- Separator
     local separator = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     separator:SetPoint("TOPLEFT", helpText, "BOTTOMLEFT", 0, -25)
-    separator:SetText("Reset Bindings")
+    separator:SetText(T("Reset Bindings"))
     
     -- Reset Default Bindings button
     local resetBindingsButton = CreateFrame("Button", "CEConfigResetBindings", section, "UIPanelButtonTemplate")
     resetBindingsButton:SetWidth(160)
     resetBindingsButton:SetHeight(24)
     resetBindingsButton:SetPoint("TOPLEFT", separator, "BOTTOMLEFT", 0, -10)
-    resetBindingsButton:SetText("Reset Default Bindings")
+    resetBindingsButton:SetText(T("Reset Default Bindings"))
     resetBindingsButton:SetScript("OnClick", function()
         -- Reset keybindings
         ConsoleExperienceKeybindings:ResetAllBindings()
@@ -666,19 +736,19 @@ function Config:CreateKeybindingsSection()
     resetHelp:SetPoint("TOPLEFT", resetBindingsButton, "BOTTOMLEFT", 0, -5)
     resetHelp:SetWidth(300)
     resetHelp:SetJustifyH("LEFT")
-    resetHelp:SetText("Resets all keybindings to default (1-0 keys) and places default macros (Target) on the action bar.")
+    resetHelp:SetText(T("Resets all keybindings to default (1-0 keys) and places default macros (Target) on the action bar."))
     
     -- Separator for Placement Frame
     local separator2 = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     separator2:SetPoint("TOPLEFT", resetHelp, "BOTTOMLEFT", 0, -25)
-    separator2:SetText("Spell Placement")
+    separator2:SetText(T("Spell Placement"))
     
     -- Show Placement Frame button
     local showPlacementButton = CreateFrame("Button", "CEConfigShowPlacement", section, "UIPanelButtonTemplate")
     showPlacementButton:SetWidth(160)
     showPlacementButton:SetHeight(24)
     showPlacementButton:SetPoint("TOPLEFT", separator2, "BOTTOMLEFT", 0, -10)
-    showPlacementButton:SetText("Show Placement Frame")
+    showPlacementButton:SetText(T("Show Placement Frame"))
     showPlacementButton:SetScript("OnClick", function()
         if ConsoleExperience.placement then
             -- Show placement frame and close config frame
@@ -694,13 +764,15 @@ function Config:CreateKeybindingsSection()
     placementHelp:SetPoint("TOPLEFT", showPlacementButton, "BOTTOMLEFT", 0, -5)
     placementHelp:SetWidth(300)
     placementHelp:SetJustifyH("LEFT")
-    placementHelp:SetText("Opens the spell placement frame where you can drag and drop spells, macros, and items onto action bar slots.")
+    placementHelp:SetText(T("Opens the spell placement frame where you can drag and drop spells, macros, and items onto action bar slots."))
     
     self.contentSections["keybindings"] = section
 end
 
 function Config:CreateBarsSection()
     local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     local section = CreateFrame("Frame", nil, content)
     section:SetAllPoints(content)
@@ -709,19 +781,19 @@ function Config:CreateBarsSection()
     -- Title
     local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
-    title:SetText("Action Bar Settings")
+    title:SetText(T("Action Bar Settings"))
     
     -- Description
     local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(280)
     desc:SetJustifyH("LEFT")
-    desc:SetText("Configure the gamepad-style action bar layout.")
+    desc:SetText(T("Configure the gamepad-style action bar layout."))
     
     -- Button Size
     local sizeLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     sizeLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
-    sizeLabel:SetText("Button Size:")
+    sizeLabel:SetText(T("Button Size") .. ":")
     
     local sizeEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barButtonSize")) end,
@@ -737,7 +809,7 @@ function Config:CreateBarsSection()
     -- Padding
     local paddingLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     paddingLabel:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -15)
-    paddingLabel:SetText("Button Padding:")
+    paddingLabel:SetText(T("Button Padding") .. ":")
     
     local paddingEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barPadding")) end,
@@ -753,7 +825,7 @@ function Config:CreateBarsSection()
     -- X Offset
     local xLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     xLabel:SetPoint("TOPLEFT", paddingLabel, "BOTTOMLEFT", 0, -15)
-    xLabel:SetText("X Offset:")
+    xLabel:SetText(T("X Offset") .. ":")
     
     local xEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barXOffset")) end,
@@ -767,7 +839,7 @@ function Config:CreateBarsSection()
     -- Y Offset
     local yLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     yLabel:SetPoint("TOPLEFT", xLabel, "BOTTOMLEFT", 0, -15)
-    yLabel:SetText("Y Offset:")
+    yLabel:SetText(T("Y Offset") .. ":")
     
     local yEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barYOffset")) end,
@@ -781,7 +853,7 @@ function Config:CreateBarsSection()
     -- Star Padding (between left and right sides)
     local starPaddingLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     starPaddingLabel:SetPoint("TOPLEFT", yLabel, "BOTTOMLEFT", 0, -15)
-    starPaddingLabel:SetText("Star Padding:")
+    starPaddingLabel:SetText(T("Star Padding") .. ":")
     
     local starPaddingEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barStarPadding")) end,
@@ -797,7 +869,7 @@ function Config:CreateBarsSection()
     -- Scale
     local scaleLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", starPaddingLabel, "BOTTOMLEFT", 0, -15)
-    scaleLabel:SetText("Scale:")
+    scaleLabel:SetText(T("Scale") .. ":")
     
     local scaleEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("barScale")) end,
@@ -815,14 +887,14 @@ function Config:CreateBarsSection()
     helpText:SetPoint("TOPLEFT", scaleLabel, "BOTTOMLEFT", 0, -25)
     helpText:SetWidth(260)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("Size: 20-80, Padding: 0-100, Star Padding: 50-1000, Scale: 0.5-2.0. X/Y offset from bottom center.")
+    helpText:SetText(T("Size: 20-80, Padding: 0-100, Star Padding: 50-1000, Scale: 0.5-2.0. X/Y offset from bottom center."))
     
     -- Reset to defaults button
     local resetButton = CreateFrame("Button", "CEConfigResetLayout", section, "UIPanelButtonTemplate")
     resetButton:SetWidth(120)
     resetButton:SetHeight(22)
     resetButton:SetPoint("TOPLEFT", helpText, "BOTTOMLEFT", 0, -15)
-    resetButton:SetText("Reset Layout")
+    resetButton:SetText(T("Reset Layout"))
     resetButton:SetScript("OnClick", function()
         Config:Set("barButtonSize", Config.DEFAULTS.barButtonSize)
         Config:Set("barPadding", Config.DEFAULTS.barPadding)
@@ -846,6 +918,8 @@ end
 
 function Config:CreateChatSection()
     local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
     
     local section = CreateFrame("Frame", nil, content)
     section:SetAllPoints(content)
@@ -854,19 +928,19 @@ function Config:CreateChatSection()
     -- Title
     local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
-    title:SetText("Chat Settings")
+    title:SetText(T("Chat Settings"))
     
     -- Description
     local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
     desc:SetWidth(280)
     desc:SetJustifyH("LEFT")
-    desc:SetText("Configure the chat frame position and size. The chat frame is centered at the bottom of the screen.")
+    desc:SetText(T("Configure the chat frame position and size. The chat frame is centered at the bottom of the screen."))
     
     -- Chat Width
     local chatWidthLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chatWidthLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
-    chatWidthLabel:SetText("Chat Width:")
+    chatWidthLabel:SetText(T("Chat Width") .. ":")
     
     local chatWidthEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("chatWidth")) end,
@@ -884,7 +958,7 @@ function Config:CreateChatSection()
     -- Chat Height
     local chatHeightLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chatHeightLabel:SetPoint("TOPLEFT", chatWidthLabel, "BOTTOMLEFT", 0, -15)
-    chatHeightLabel:SetText("Chat Height:")
+    chatHeightLabel:SetText(T("Chat Height") .. ":")
     
     local chatHeightEditBox = self:CreateEditBox(section, 50, 
         function() return tostring(Config:Get("chatHeight")) end,
@@ -935,28 +1009,28 @@ function Config:CreateChatSection()
     
     local keyboardLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     keyboardLabel:SetPoint("LEFT", keyboardCheck, "RIGHT", 5, 0)
-    keyboardLabel:SetText("Enable Virtual Keyboard")
+    keyboardLabel:SetText(T("Enable Virtual Keyboard"))
     
     -- Keyboard help text
     local keyboardHelp = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     keyboardHelp:SetPoint("TOPLEFT", keyboardCheck, "BOTTOMLEFT", 0, -5)
     keyboardHelp:SetWidth(260)
     keyboardHelp:SetJustifyH("LEFT")
-    keyboardHelp:SetText("When enabled, a virtual keyboard appears when typing in chat. Disable to use an external keyboard.")
+    keyboardHelp:SetText(T("When enabled, a virtual keyboard appears when typing in chat. Disable to use an external keyboard."))
     
     -- Help text
     local helpText = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     helpText:SetPoint("TOPLEFT", keyboardHelp, "BOTTOMLEFT", 0, -10)
     helpText:SetWidth(260)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText("Width: 100-2000, Height: 50-1000. The chat frame is centered at the bottom of the screen.")
+    helpText:SetText(T("Width: 100-2000, Height: 50-1000. The chat frame is centered at the bottom of the screen."))
     
     -- Reset to defaults button
     local resetButton = CreateFrame("Button", "CEConfigResetChat", section, "UIPanelButtonTemplate")
     resetButton:SetWidth(120)
     resetButton:SetHeight(22)
     resetButton:SetPoint("TOPLEFT", helpText, "BOTTOMLEFT", 0, -15)
-    resetButton:SetText("Reset Chat")
+    resetButton:SetText(T("Reset Chat"))
     resetButton:SetScript("OnClick", function()
         Config:Set("chatWidth", Config.DEFAULTS.chatWidth)
         Config:Set("chatHeight", Config.DEFAULTS.chatHeight)
@@ -1122,7 +1196,9 @@ function Config:CreateGameMenuButton()
     
     -- Create button using GameMenuButtonTemplate
     local button = CreateFrame("Button", "GameMenuButtonConsoleExperience", GameMenuFrame, "GameMenuButtonTemplate")
-    button:SetText("Console Experience")
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
+    button:SetText(T("Console Experience"))
     
     -- Position after UIOptions (Interface Options) button
     if GameMenuButtonUIOptions then
@@ -1150,6 +1226,19 @@ end
 
 -- Create the game menu button when the addon loads
 Config:CreateGameMenuButton()
+
+-- Create reload UI popup
+StaticPopupDialogs["CE_RELOAD_UI"] = {
+    text = "Language changed. Reload UI to apply?",
+    button1 = "Yes",
+    button2 = "No",
+    OnAccept = function()
+        ReloadUI()
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
 
 -- ============================================================================
 -- Crosshair

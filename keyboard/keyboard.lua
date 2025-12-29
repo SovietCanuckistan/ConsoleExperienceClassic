@@ -646,12 +646,20 @@ function Keyboard:CreateEmotePanel(parent)
     -- Title label
     local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", parent, "TOP", 0, -10)
-    title:SetText("Emotes")
+    local Locale = ConsoleExperience.locale
+    local titleText = "Emotes"
+    if Locale then
+        titleText = Locale:Translate("Emotes") or titleText
+    end
+    title:SetText(titleText)
     title:SetTextColor(1, 1, 1, 1)
     
     -- Create emote buttons in a grid
     local startY = -40  -- Start below title
     local startX = buttonWidth / 2  -- Center of first button
+    
+    -- Get locale for translations
+    local Locale = ConsoleExperience.locale
     
     for i, emoteInfo in ipairs(COMMON_EMOTES) do
         local row = math.floor((i - 1) / numColumns)
@@ -660,7 +668,13 @@ function Keyboard:CreateEmotePanel(parent)
         local x = startX + col * (buttonWidth + buttonSpacing)
         local y = startY - row * (buttonHeight + buttonSpacing) - (buttonHeight / 2)
         
-        local button = self:CreateEmoteButton(parent, emoteInfo.cmd, emoteInfo.label, x, y, buttonWidth, buttonHeight)
+        -- Translate emote label
+        local emoteLabel = emoteInfo.label
+        if Locale then
+            emoteLabel = Locale:Translate(emoteInfo.label) or emoteLabel
+        end
+        
+        local button = self:CreateEmoteButton(parent, emoteInfo.cmd, emoteLabel, x, y, buttonWidth, buttonHeight)
         button.emoteRow = row + 1
         button.emoteCol = col + 1
         table.insert(self.emoteButtons, button)
