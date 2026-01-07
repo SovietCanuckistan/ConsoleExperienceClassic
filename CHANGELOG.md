@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.8.0...v0.8.1) (2026-01-07)
+
+
+### Bug Fixes
+
+* correct textures path for tooltip and keybowrd ([d44e008](https://github.com/pepordev/ConsoleExperienceClassic/commit/d44e0080e4b241f5276a424c8fc81c574aaaee3d))
+
 ## [0.8.0](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.7.0...v0.8.0) (2026-01-07)
 
 
