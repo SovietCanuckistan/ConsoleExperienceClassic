@@ -29,6 +29,20 @@ ConsoleExperience_translation["enUS"] = {
     ["Dot"] = "Dot",
     ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot."] = "X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot.",
     
+    -- XP/Rep Bars
+    ["XP/Reputation Bars"] = "XP/Reputation Bars",
+    ["Configure experience and reputation bars. Bars appear below chat and fade out after timeout."] = "Configure experience and reputation bars. Bars appear below chat and fade out after timeout.",
+    ["XP Bar Always Visible"] = "XP Bar Always Visible",
+    ["XP Bar Width"] = "XP Bar Width",
+    ["XP Bar Height"] = "XP Bar Height",
+    ["XP Bar Timeout"] = "XP Bar Timeout",
+    ["XP Bar Text Show"] = "XP Bar Text Show",
+    ["Reputation Bar Always Visible"] = "Reputation Bar Always Visible",
+    ["Reputation Bar Width"] = "Reputation Bar Width",
+    ["Reputation Bar Height"] = "Reputation Bar Height",
+    ["Reputation Bar Timeout"] = "Reputation Bar Timeout",
+    ["Reputation Bar Text Show"] = "Reputation Bar Text Show",
+    
     -- Keybindings
     ["Keybindings"] = "Keybindings",
     ["Keybinding Settings"] = "Keybinding Settings",

@@ -34,7 +34,28 @@ Config.DEFAULTS = {
     -- Chat settings
     chatWidth = 400,
     chatHeight = 150,
+    chatBottomY = 20,  -- Y position from bottom (adjusted for XP/Rep bars)
     keyboardEnabled = true,  -- If true, show virtual keyboard when chat edit box is visible
+    -- XP/Rep Bar settings
+    xpBarWidth = nil,  -- nil = use chat width
+    xpBarHeight = 20,  -- Default height (minimum is 20 for border texture)
+    xpBarDisplay = "XP",  -- "XP", "PETXP", "REP", "FLEX", "XPFLEX"
+    xpBarAlways = true,  -- XP bar visible by default
+    xpBarTimeout = 5.0,  -- Seconds before bar fades out
+    xpBarTextShow = true,
+    xpBarTextMouse = false,
+    xpBarTextOffsetY = 0,
+    xpBarColor = "0.0,1.0,0.0,1.0",  -- WoW default green for XP
+    xpBarRestColor = "0.0,0.5,1.0,1.0",  -- WoW default blue for rested
+    xpBarDontOverlap = false,
+    repBarWidth = nil,  -- nil = use chat width
+    repBarHeight = 20,  -- Default height (minimum is 20 for border texture)
+    repBarDisplay = "REP",  -- "REP", "FLEX"
+    repBarAlways = false,  -- Rep bar hidden by default
+    repBarTimeout = 5.0,  -- Seconds before bar fades out
+    repBarTextShow = true,
+    repBarTextMouse = false,
+    repBarTextOffsetY = 0,
     -- Keybinding settings
     useAForJump = true,  -- If true, A button (key 1) is bound to JUMP instead of CE_ACTION_1
     -- Locale settings
@@ -82,6 +103,11 @@ function Config:InitializeDB()
         ConsoleExperience.chat:UpdateChatLayout()
     end
     
+    -- Apply XP/Rep bar layout
+    if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+        ConsoleExperience.xpbar:UpdateAllBars()
+    end
+    
 end
 
 function Config:Get(key)
@@ -125,6 +151,7 @@ Config.SECTIONS = {
     { id = "keybindings", name = "Keybindings" },
     { id = "bars", name = "Action Bars" },
     { id = "chat", name = "Chat" },
+    { id = "xpbar", name = "XP/Rep Bars" },
 }
 
 -- ============================================================================
@@ -434,6 +461,9 @@ function Config:CreateContentSections()
     
     -- Create Chat section
     self:CreateChatSection()
+    
+    -- Create XP/Rep Bar section
+    self:CreateXPBarSection()
     
     -- Update scroll child height based on content
     self:UpdateScrollChildHeight()
@@ -1229,6 +1259,10 @@ function Config:CreateChatSection()
             if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
                 ConsoleExperience.chat:UpdateChatLayout()
             end
+            -- Update XP/Rep bars if they use chat width
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+                ConsoleExperience.xpbar:UpdateAllBars()
+            end
         end)
     chatWidthEditBox:SetPoint("LEFT", chatWidthLabel, "RIGHT", 10, 0)
     
@@ -1323,6 +1357,285 @@ function Config:CreateChatSection()
     end)
     
     self.contentSections["chat"] = section
+end
+
+function Config:CreateXPBarSection()
+    local content = self.frame.content
+    local Locale = ConsoleExperience.locale
+    local T = Locale and Locale.T or function(key) return key end
+    
+    local section = CreateFrame("Frame", nil, content)
+    section:SetAllPoints(content)
+    section:Hide()
+    
+    -- Title
+    local title = section:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", section, "TOPLEFT", 15, -15)
+    title:SetText(T("XP/Reputation Bars"))
+    
+    -- Description
+    local desc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+    desc:SetWidth(280)
+    desc:SetJustifyH("LEFT")
+    desc:SetText(T("Configure experience and reputation bars. Bars appear below chat and fade out after timeout."))
+    
+    local yOffset = -20
+    
+    -- XP Bar Always Visible
+    local xpAlwaysCheck = CreateFrame("CheckButton", "CEConfigXPBarAlways", section, "UICheckButtonTemplate")
+    xpAlwaysCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    xpAlwaysCheck:SetChecked(Config:Get("xpBarAlways") or false)
+    xpAlwaysCheck:SetScript("OnClick", function()
+        local checked = xpAlwaysCheck:GetChecked() == 1
+        Config:Set("xpBarAlways", checked)
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.xpBar then
+            ConsoleExperience.xpbar.xpBar.always = checked
+            if checked then
+                ConsoleExperience.xpbar.xpBar:SetAlpha(1)
+                ConsoleExperience.xpbar.xpBar:Show()
+            end
+        end
+        if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
+            ConsoleExperience.chat:UpdateChatLayout()
+        end
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+            ConsoleExperience.xpbar:UpdateAllBars()
+        end
+    end)
+    local xpAlwaysLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    xpAlwaysLabel:SetPoint("LEFT", xpAlwaysCheck, "RIGHT", 5, 0)
+    xpAlwaysLabel:SetText(T("XP Bar Always Visible"))
+    
+    yOffset = yOffset - 25
+    
+    -- XP Bar Width
+    local xpWidthLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    xpWidthLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    xpWidthLabel:SetText(T("XP Bar Width") .. " (0 = Chat Width):")
+    
+    local xpWidthEditBox = self:CreateEditBox(section, 50,
+        function() 
+            local val = Config:Get("xpBarWidth")
+            return val and tostring(val) or "0"
+        end,
+        function(value)
+            local num = tonumber(value)
+            if num == 0 then num = nil end
+            if num and num < 50 then num = 50 end
+            if num and num > 2000 then num = 2000 end
+            Config:Set("xpBarWidth", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+                ConsoleExperience.xpbar:UpdateAllBars()
+            end
+        end)
+    xpWidthEditBox:SetPoint("LEFT", xpWidthLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- XP Bar Height
+    local xpHeightLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    xpHeightLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    xpHeightLabel:SetText(T("XP Bar Height") .. ":")
+    
+    local xpHeightEditBox = self:CreateEditBox(section, 50,
+        function() return tostring(Config:Get("xpBarHeight") or 20) end,
+        function(value)
+            local num = tonumber(value) or 20
+            if num < 20 then num = 20 end  -- Minimum height for border texture
+            if num > 100 then num = 100 end
+            Config:Set("xpBarHeight", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+                ConsoleExperience.xpbar:UpdateAllBars()
+            end
+            if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
+                ConsoleExperience.chat:UpdateChatLayout()
+            end
+        end)
+    xpHeightEditBox:SetPoint("LEFT", xpHeightLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- XP Bar Timeout
+    local xpTimeoutLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    xpTimeoutLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    xpTimeoutLabel:SetText(T("XP Bar Timeout") .. " (seconds):")
+    
+    local xpTimeoutEditBox = self:CreateEditBox(section, 50,
+        function() return tostring(Config:Get("xpBarTimeout") or 5.0) end,
+        function(value)
+            local num = tonumber(value) or 5.0
+            if num < 0 then num = 0 end
+            if num > 60 then num = 60 end
+            Config:Set("xpBarTimeout", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.xpBar then
+                ConsoleExperience.xpbar.xpBar.timeout = num
+            end
+        end)
+    xpTimeoutEditBox:SetPoint("LEFT", xpTimeoutLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- XP Bar Text Show
+    local xpTextShowCheck = CreateFrame("CheckButton", "CEConfigXPBarTextShow", section, "UICheckButtonTemplate")
+    xpTextShowCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    local xpTextShowValue = Config:Get("xpBarTextShow")
+    xpTextShowCheck:SetChecked(xpTextShowValue == nil and true or xpTextShowValue)
+    xpTextShowCheck:SetScript("OnClick", function()
+        local checked = xpTextShowCheck:GetChecked() == 1
+        Config:Set("xpBarTextShow", checked)
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.xpBar then
+            -- Reload config to update text_show
+            ConsoleExperience.xpbar:ReloadBarConfig(ConsoleExperience.xpbar.xpBar, "XP")
+            -- Trigger an update to populate text if bar is always visible
+            if ConsoleExperience.xpbar.xpBar.always then
+                event = "PLAYER_XP_UPDATE"
+                ConsoleExperience.xpbar.xpBar:GetScript("OnEvent")(ConsoleExperience.xpbar.xpBar)
+            end
+            -- Also update text visibility directly if text exists
+            if ConsoleExperience.xpbar.xpBar.bar and ConsoleExperience.xpbar.xpBar.bar.text then
+                if checked then
+                    ConsoleExperience.xpbar.xpBar.bar.text:Show()
+                else
+                    ConsoleExperience.xpbar.xpBar.bar.text:Hide()
+                end
+            end
+        end
+    end)
+    local xpTextShowLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    xpTextShowLabel:SetPoint("LEFT", xpTextShowCheck, "RIGHT", 5, 0)
+    xpTextShowLabel:SetText(T("XP Bar Text Show"))
+    
+    yOffset = yOffset - 25
+    
+    -- Rep Bar Always Visible
+    local repAlwaysCheck = CreateFrame("CheckButton", "CEConfigRepBarAlways", section, "UICheckButtonTemplate")
+    repAlwaysCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    repAlwaysCheck:SetChecked(Config:Get("repBarAlways") or false)
+    repAlwaysCheck:SetScript("OnClick", function()
+        local checked = repAlwaysCheck:GetChecked() == 1
+        Config:Set("repBarAlways", checked)
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.repBar then
+            ConsoleExperience.xpbar.repBar.always = checked
+            if checked then
+                ConsoleExperience.xpbar.repBar:SetAlpha(1)
+                ConsoleExperience.xpbar.repBar:Show()
+            end
+        end
+        if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
+            ConsoleExperience.chat:UpdateChatLayout()
+        end
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+            ConsoleExperience.xpbar:UpdateAllBars()
+        end
+    end)
+    local repAlwaysLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    repAlwaysLabel:SetPoint("LEFT", repAlwaysCheck, "RIGHT", 5, 0)
+    repAlwaysLabel:SetText(T("Reputation Bar Always Visible"))
+    
+    yOffset = yOffset - 25
+    
+    -- Rep Bar Width
+    local repWidthLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    repWidthLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    repWidthLabel:SetText(T("Reputation Bar Width") .. " (0 = Chat Width):")
+    
+    local repWidthEditBox = self:CreateEditBox(section, 50,
+        function() 
+            local val = Config:Get("repBarWidth")
+            return val and tostring(val) or "0"
+        end,
+        function(value)
+            local num = tonumber(value)
+            if num == 0 then num = nil end
+            if num and num < 50 then num = 50 end
+            if num and num > 2000 then num = 2000 end
+            Config:Set("repBarWidth", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+                ConsoleExperience.xpbar:UpdateAllBars()
+            end
+        end)
+    repWidthEditBox:SetPoint("LEFT", repWidthLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- Rep Bar Height
+    local repHeightLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    repHeightLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    repHeightLabel:SetText(T("Reputation Bar Height") .. ":")
+    
+    local repHeightEditBox = self:CreateEditBox(section, 50,
+        function() return tostring(Config:Get("repBarHeight") or 20) end,
+        function(value)
+            local num = tonumber(value) or 20
+            if num < 20 then num = 20 end  -- Minimum height for border texture
+            if num > 100 then num = 100 end
+            Config:Set("repBarHeight", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.UpdateAllBars then
+                ConsoleExperience.xpbar:UpdateAllBars()
+            end
+            if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
+                ConsoleExperience.chat:UpdateChatLayout()
+            end
+        end)
+    repHeightEditBox:SetPoint("LEFT", repHeightLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- Rep Bar Timeout
+    local repTimeoutLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    repTimeoutLabel:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    repTimeoutLabel:SetText(T("Reputation Bar Timeout") .. " (seconds):")
+    
+    local repTimeoutEditBox = self:CreateEditBox(section, 50,
+        function() return tostring(Config:Get("repBarTimeout") or 5.0) end,
+        function(value)
+            local num = tonumber(value) or 5.0
+            if num < 0 then num = 0 end
+            if num > 60 then num = 60 end
+            Config:Set("repBarTimeout", num)
+            if ConsoleExperience.xpbar and ConsoleExperience.xpbar.repBar then
+                ConsoleExperience.xpbar.repBar.timeout = num
+            end
+        end)
+    repTimeoutEditBox:SetPoint("LEFT", repTimeoutLabel, "RIGHT", 10, 0)
+    
+    yOffset = yOffset - 25
+    
+    -- Rep Bar Text Show
+    local repTextShowCheck = CreateFrame("CheckButton", "CEConfigRepBarTextShow", section, "UICheckButtonTemplate")
+    repTextShowCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, yOffset)
+    local repTextShowValue = Config:Get("repBarTextShow")
+    repTextShowCheck:SetChecked(repTextShowValue == nil and true or repTextShowValue)
+    repTextShowCheck:SetScript("OnClick", function()
+        local checked = repTextShowCheck:GetChecked() == 1
+        Config:Set("repBarTextShow", checked)
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.repBar then
+            ConsoleExperience.xpbar.repBar.text_show = checked
+            -- Reload config to ensure text_show is updated
+            ConsoleExperience.xpbar:ReloadBarConfig(ConsoleExperience.xpbar.repBar, "REP")
+            -- Trigger an update to populate text if bar is always visible
+            if ConsoleExperience.xpbar.repBar.always then
+                event = "UPDATE_FACTION"
+                ConsoleExperience.xpbar.repBar:GetScript("OnEvent")(ConsoleExperience.xpbar.repBar)
+            end
+            -- Also update text visibility directly if text exists
+            if ConsoleExperience.xpbar.repBar.bar and ConsoleExperience.xpbar.repBar.bar.text then
+                if checked then
+                    ConsoleExperience.xpbar.repBar.bar.text:Show()
+                else
+                    ConsoleExperience.xpbar.repBar.bar.text:Hide()
+                end
+            end
+        end
+    end)
+    local repTextShowLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    repTextShowLabel:SetPoint("LEFT", repTextShowCheck, "RIGHT", 5, 0)
+    repTextShowLabel:SetText(T("Reputation Bar Text Show"))
+    
+    yOffset = yOffset - 25
+    
+    self.contentSections["xpbar"] = section
 end
 
 -- ============================================================================

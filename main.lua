@@ -73,6 +73,11 @@ ConsoleExperience:SetScript("OnEvent", function()
             ConsoleExperience.keyboard:Initialize()
         end
         
+        -- Initialize XP/Rep bar module
+        if ConsoleExperience.xpbar and ConsoleExperience.xpbar.Initialize then
+            ConsoleExperience.xpbar:Initialize()
+        end
+        
         CE_Debug("ConsoleExperience loaded!")
         
     elseif event == "PLAYER_ENTERING_WORLD" then

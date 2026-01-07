@@ -96,8 +96,57 @@ function Chat:UpdateChatLayout(forceUpdate)
     end
     
     -- Calculate chat position (centered at bottom of screen)
-    -- Chat is always centered at screen bottom, independent of action bar positions
-    local chatBottomY = 20  -- Position 20 pixels from bottom of screen
+    -- Chat should be positioned above visible bars
+    local baseChatBottomY = config:Get("chatBottomY") or 20
+    local chatGap = 5  -- Gap between chat and bars
+    
+    -- Check actual bar visibility and get actual heights
+    local xpBarVisible = false
+    local repBarVisible = false
+    local xpBarHeight = 0
+    local repBarHeight = 0
+    
+    if ConsoleExperience.xpbar then
+        if ConsoleExperience.xpbar.xpBar then
+            xpBarVisible = ConsoleExperience.xpbar.xpBar:IsShown() and ConsoleExperience.xpbar.xpBar:GetAlpha() > 0
+            if xpBarVisible then
+                xpBarHeight = ConsoleExperience.xpbar.xpBar.height or config:Get("xpBarHeight") or 20
+            end
+        end
+        if ConsoleExperience.xpbar.repBar then
+            repBarVisible = ConsoleExperience.xpbar.repBar:IsShown() and ConsoleExperience.xpbar.repBar:GetAlpha() > 0
+            if repBarVisible then
+                repBarHeight = ConsoleExperience.xpbar.repBar.height or config:Get("repBarHeight") or 20
+            end
+        end
+    end
+    
+    -- Calculate chat position based on visible bars
+    -- REP bar is at bottom (if shown)
+    -- XP bar is above REP bar (if REP shown), otherwise below chat
+    -- Chat is above XP bar (if XP shown), otherwise at base position
+    
+    local chatBottomY = baseChatBottomY
+    
+    if xpBarVisible then
+        -- XP bar is visible, chat goes above it
+        if repBarVisible then
+            -- Both bars: REP at bottom, XP above REP, Chat above XP
+            local barGap = 2  -- Gap between XP and REP bars
+            -- REP at bottom, XP at repBarHeight + barGap, Chat at repBarHeight + barGap + xpBarHeight + chatGap
+            chatBottomY = baseChatBottomY + repBarHeight + barGap + xpBarHeight + chatGap
+        else
+            -- Only XP bar: XP is positioned below chat, so chat needs to move up to make room
+            -- XP bar will be at: chatBottomY - chatGap - xpBarHeight
+            -- So chat should be at: baseChatBottomY + xpBarHeight + chatGap
+            chatBottomY = baseChatBottomY + xpBarHeight + chatGap
+        end
+    elseif repBarVisible then
+        -- Only REP bar: REP at bottom, Chat above REP
+        chatBottomY = baseChatBottomY + repBarHeight + chatGap
+    end
+    -- If no bars visible, chat stays at baseChatBottomY position
+    
     local halfWidth = chatWidth / 2
     
     -- Always restore to configured size and position
