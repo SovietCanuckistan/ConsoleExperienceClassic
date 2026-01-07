@@ -23,7 +23,11 @@ ConsoleExperience_translation["esES"] = {
     ["Crosshair X Offset"] = "Desplazamiento X de la Mira",
     ["Crosshair Y Offset"] = "Desplazamiento Y de la Mira",
     ["Crosshair Size"] = "Tamaño de la Mira",
-    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels."] = "Desplazamiento X/Y desde el centro de la pantalla. Usa valores negativos para mover a la izquierda/abajo. Tamaño: 4-100 píxeles.",
+    ["Crosshair Type"] = "Tipo de Mira",
+    ["Crosshair Color"] = "Color de la Mira",
+    ["Cross"] = "Cruz",
+    ["Dot"] = "Punto",
+    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot."] = "Desplazamiento X/Y desde el centro de la pantalla. Usa valores negativos para mover a la izquierda/abajo. Tamaño: 4-100 píxeles. Tipo: Cruz muestra líneas, Punto muestra solo el punto central.",
     
     -- Keybindings
     ["Keybindings"] = "Atajos de Teclado",

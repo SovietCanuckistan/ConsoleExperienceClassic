@@ -23,7 +23,11 @@ ConsoleExperience_translation["deDE"] = {
     ["Crosshair X Offset"] = "Fadenkreuz X-Offset",
     ["Crosshair Y Offset"] = "Fadenkreuz Y-Offset",
     ["Crosshair Size"] = "Fadenkreuz-Größe",
-    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels."] = "X/Y-Offset vom Bildschirmzentrum. Negative Werte bewegen nach links/unten. Größe: 4-100 Pixel.",
+    ["Crosshair Type"] = "Fadenkreuz-Typ",
+    ["Crosshair Color"] = "Fadenkreuz-Farbe",
+    ["Cross"] = "Kreuz",
+    ["Dot"] = "Punkt",
+    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot."] = "X/Y-Offset vom Bildschirmzentrum. Negative Werte bewegen nach links/unten. Größe: 4-100 Pixel. Typ: Kreuz zeigt Linien, Punkt zeigt nur den Mittelpunkt.",
     
     -- Keybindings
     ["Keybindings"] = "Tastenbelegungen",

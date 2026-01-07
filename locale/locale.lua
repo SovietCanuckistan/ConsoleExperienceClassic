@@ -65,16 +65,21 @@ end
 
 -- Set language
 function Locale:SetLanguage(lang)
+    if not lang then
+        CE_Debug("Language not available: (nil)")
+        return false
+    end
+    
     if ConsoleExperience_translation[lang] then
         self.current = lang
         local config = ConsoleExperience.config
         if config then
             config:Set("language", lang)
         end
-        CE_Debug("Language set to: " .. lang)
+        CE_Debug("Language set to: " .. tostring(lang))
         return true
     else
-        CE_Debug("Language not available: " .. lang)
+        CE_Debug("Language not available: " .. tostring(lang))
         return false
     end
 end

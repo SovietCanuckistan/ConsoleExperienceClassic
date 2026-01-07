@@ -23,7 +23,11 @@ ConsoleExperience_translation["enUS"] = {
     ["Crosshair X Offset"] = "Crosshair X Offset",
     ["Crosshair Y Offset"] = "Crosshair Y Offset",
     ["Crosshair Size"] = "Crosshair Size",
-    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels."] = "X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels.",
+    ["Crosshair Type"] = "Crosshair Type",
+    ["Crosshair Color"] = "Crosshair Color",
+    ["Cross"] = "Cross",
+    ["Dot"] = "Dot",
+    ["X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot."] = "X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot.",
     
     -- Keybindings
     ["Keybindings"] = "Keybindings",

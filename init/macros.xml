@@ -1,0 +1,4 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="..\macros\macros.lua"/>
+  <Include file="..\macros\icon_helper.lua"/>
+</Ui>

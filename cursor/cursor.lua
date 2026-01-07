@@ -165,7 +165,16 @@ function Cursor:IsInteractiveElement(frame)
     
     -- Check if it's a Button (has IsEnabled method)
     if frame:IsObjectType("Button") then
+        -- For dropdown buttons, always consider them interactive if visible
+        local buttonName = frame:GetName() or ""
+        if string.find(buttonName, "DropdownButton") or string.find(buttonName, "DropDownButton") then
+            return true
+        end
         if frame.IsEnabled and frame:IsEnabled() then
+            return true
+        end
+        -- Also check if button is visible but might not have IsEnabled (some buttons don't)
+        if frame:IsVisible() and not frame.IsEnabled then
             return true
         end
     end

@@ -10,21 +10,13 @@
 ## SavedVariablesPerCharacter: ConsoleExperienceDB
 
 main.lua
-locale\locale.xml
-locale\locale.lua
+init\locale.xml
 keybindings.lua
-actionbars\bars.lua
-actionbars\placement.lua
-actionbars\actionbars.xml
-cursor\cursor.lua
-cursor\tooltip.lua
-cursor\actions.lua
-cursor\keybindings.lua
-cursor\hooks.lua
-radial\radial.lua
-macros\macros.lua
-macros\icon_helper.lua
-config\config.lua
-chat\chat.lua
-keyboard\keyboard.lua
+init\actionbars.xml
+init\cursor.xml
+init\radial.xml
+init\macros.xml
+init\config.xml
+init\chat.xml
+init\keyboard.xml
 Bindings.xml

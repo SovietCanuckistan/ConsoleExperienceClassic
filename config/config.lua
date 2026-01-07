@@ -19,6 +19,11 @@ Config.DEFAULTS = {
     crosshairX = 0,
     crosshairY = 50,
     crosshairSize = 24,
+    crosshairType = "cross",  -- "cross" or "dot"
+    crosshairColorR = 1.0,    -- Red component (0-1)
+    crosshairColorG = 1.0,    -- Green component (0-1)
+    crosshairColorB = 1.0,    -- Blue component (0-1)
+    crosshairColorA = 0.8,    -- Alpha component (0-1)
     -- Action Bar settings
     barButtonSize = 60,
     barXOffset = 0,
@@ -487,52 +492,97 @@ function Config:CreateGeneralSection()
         end)
     debugCheck:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
     
-    -- Language selector
+    -- Language selector dropdown
     local langLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     langLabel:SetPoint("TOPLEFT", debugCheck, "BOTTOMLEFT", 0, -20)
     langLabel:SetText(T("Language") .. ":")
     
-    -- Language dropdown (simple button that cycles through languages)
-    local langButton = CreateFrame("Button", "CEConfigLanguageButton", section, "UIPanelButtonTemplate")
-    langButton:SetWidth(120)
-    langButton:SetHeight(22)
-    langButton:SetPoint("LEFT", langLabel, "RIGHT", 10, 0)
+    local langDropdown = CreateFrame("Frame", "CEConfigLanguageDropdown", section, "UIDropDownMenuTemplate")
+    langDropdown:SetPoint("LEFT", langLabel, "RIGHT", -15, -3)
     
-    local function UpdateLanguageButton()
-        local currentLang = Config:Get("language") or GetLocale() or "enUS"
-        local langName = Locale and Locale:GetLanguageName(currentLang) or currentLang
-        langButton:SetText(langName)
+    -- Initialize function for language dropdown
+    local function InitializeLanguageDropdown()
+        if not Locale then 
+            CE_Debug("Language dropdown: Locale module not found")
+            return 
+        end
+        
+        local available = Locale:GetAvailableLanguages()
+        CE_Debug("Language dropdown: Available languages count: " .. table.getn(available))
+        
+        if table.getn(available) == 0 then 
+            -- Fallback: add at least English if no languages found
+            local info = {}
+            info.text = "English"
+            info.value = "enUS"
+            info.func = function()
+                UIDropDownMenu_SetSelectedValue(langDropdown, "enUS")
+                UIDropDownMenu_SetText("English", langDropdown)
+                Locale:SetLanguage("enUS")
+                StaticPopup_Show("CE_RELOAD_UI")
+            end
+            info.checked = 1
+            UIDropDownMenu_AddButton(info)
+            return
+        end
+        
+        local selectedValue = UIDropDownMenu_GetSelectedValue(langDropdown) or (Config:Get("language") or GetLocale() or "enUS")
+        local info
+        
+        for _, lang in ipairs(available) do
+            info = {}
+            info.text = Locale:GetLanguageName(lang)
+            info.value = lang
+            info.func = function()
+                UIDropDownMenu_SetSelectedValue(langDropdown, lang)
+                UIDropDownMenu_SetText(Locale:GetLanguageName(lang), langDropdown)
+                Locale:SetLanguage(lang)
+                -- Reload UI message
+                StaticPopup_Show("CE_RELOAD_UI")
+            end
+            if info.value == selectedValue then
+                info.checked = 1
+            end
+            UIDropDownMenu_AddButton(info)
+        end
     end
     
-    langButton:SetScript("OnClick", function()
-        if not Locale then return end
-        local available = Locale:GetAvailableLanguages()
-        if table.getn(available) == 0 then return end
-        
-        local currentLang = Config:Get("language") or GetLocale() or "enUS"
-        local currentIndex = 1
-        for i, lang in ipairs(available) do
-            if lang == currentLang then
-                currentIndex = i
-                break
+    -- Store initialize function on the dropdown frame
+    langDropdown.initialize = InitializeLanguageDropdown
+    
+    -- Initialize dropdown (this stores the function and sets initial state)
+    UIDropDownMenu_Initialize(langDropdown, InitializeLanguageDropdown)
+    UIDropDownMenu_SetWidth(120, langDropdown)
+    local currentLang = Config:Get("language") or GetLocale() or "enUS"
+    UIDropDownMenu_SetSelectedValue(langDropdown, currentLang)
+    local langName = Locale and Locale:GetLanguageName(currentLang) or currentLang
+    UIDropDownMenu_SetText(langName, langDropdown)
+    
+    -- Ensure dropdown button is navigable and properly set up (get it after initialization)
+    local langDelayFrame = CreateFrame("Frame")
+    langDelayFrame:SetScript("OnUpdate", function()
+        langDelayFrame:Hide()
+        local dropdownButton = getglobal("CEConfigLanguageDropdownButton")
+        if dropdownButton then
+            dropdownButton:Enable()
+            dropdownButton:Show()
+            
+            -- Ensure the button calls ToggleDropDownMenu correctly
+            local oldOnClick = dropdownButton:GetScript("OnClick")
+            if not oldOnClick then
+                dropdownButton:SetScript("OnClick", function()
+                    ToggleDropDownMenu(1, nil, langDropdown)
+                    PlaySound("igMainMenuOptionCheckBoxOn")
+                end)
+            end
+            
+            -- Refresh cursor navigation to detect the button
+            if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+                ConsoleExperience.cursor:RefreshFrame()
             end
         end
-        
-        -- Cycle to next language
-        local nextIndex = currentIndex + 1
-        if nextIndex > table.getn(available) then
-            nextIndex = 1
-        end
-        
-        local nextLang = available[nextIndex]
-        Locale:SetLanguage(nextLang)
-        UpdateLanguageButton()
-        
-        -- Reload UI message
-        StaticPopup_Show("CE_RELOAD_UI")
     end)
-    
-    UpdateLanguageButton()
+    langDelayFrame:Show()
     
     -- Version info
     local version = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -641,12 +691,175 @@ function Config:CreateInterfaceSection()
         Config:UpdateCrosshair()
     end)
     
+    -- Crosshair Type dropdown
+    local typeLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    typeLabel:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -20)
+    typeLabel:SetText(T("Crosshair Type") .. ":")
+    
+    local typeDropdown = CreateFrame("Frame", "CEConfigCrosshairTypeDropdown", section, "UIDropDownMenuTemplate")
+    typeDropdown:SetPoint("LEFT", typeLabel, "RIGHT", -15, -3)
+    
+    -- Ensure dropdown button is navigable with cursor
+    local dropdownButton = getglobal("CEConfigCrosshairTypeDropdownButton")
+    if dropdownButton then
+        -- Make sure button is enabled and visible
+        dropdownButton:Enable()
+        dropdownButton:Show()
+    end
+    
+    -- Initialize function for dropdown
+    local function InitializeTypeDropdown()
+        local selectedValue = UIDropDownMenu_GetSelectedValue(typeDropdown) or (Config:Get("crosshairType") or "cross")
+        local info
+        
+        info = {}
+        info.text = T("Cross")
+        info.value = "cross"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(typeDropdown, "cross")
+            UIDropDownMenu_SetText(T("Cross"), typeDropdown)
+            Config:Set("crosshairType", "cross")
+            Config:UpdateCrosshair()
+        end
+        if info.value == selectedValue then
+            info.checked = 1
+        end
+        UIDropDownMenu_AddButton(info)
+        
+        info = {}
+        info.text = T("Dot")
+        info.value = "dot"
+        info.func = function()
+            UIDropDownMenu_SetSelectedValue(typeDropdown, "dot")
+            UIDropDownMenu_SetText(T("Dot"), typeDropdown)
+            Config:Set("crosshairType", "dot")
+            Config:UpdateCrosshair()
+        end
+        if info.value == selectedValue then
+            info.checked = 1
+        end
+        UIDropDownMenu_AddButton(info)
+    end
+    
+    -- Initialize dropdown
+    UIDropDownMenu_Initialize(typeDropdown, InitializeTypeDropdown)
+    UIDropDownMenu_SetWidth(120, typeDropdown)
+    local currentType = Config:Get("crosshairType") or "cross"
+    UIDropDownMenu_SetSelectedValue(typeDropdown, currentType)
+    UIDropDownMenu_SetText(currentType == "cross" and T("Cross") or T("Dot"), typeDropdown)
+    
+    -- Ensure dropdown button is navigable (get it after initialization)
+    local delayFrame = CreateFrame("Frame")
+    delayFrame:SetScript("OnUpdate", function()
+        delayFrame:Hide()
+        local dropdownButton = getglobal("CEConfigCrosshairTypeDropdownButton")
+        if dropdownButton then
+            dropdownButton:Enable()
+            dropdownButton:Show()
+            -- Refresh cursor navigation to detect the button
+            if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+                ConsoleExperience.cursor:RefreshFrame()
+            end
+        end
+    end)
+    delayFrame:Show()
+    
+    -- Crosshair Color button
+    local colorLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    colorLabel:SetPoint("TOPLEFT", typeLabel, "BOTTOMLEFT", 0, -20)
+    colorLabel:SetText(T("Crosshair Color") .. ":")
+    
+    local colorButton = CreateFrame("Button", "CEConfigCrosshairColor", section)
+    colorButton:SetWidth(80)
+    colorButton:SetHeight(22)
+    colorButton:SetPoint("LEFT", colorLabel, "RIGHT", 10, 0)
+    
+    -- Color button backdrop
+    colorButton:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    
+    -- Color preview texture
+    local colorPreview = colorButton:CreateTexture(nil, "OVERLAY")
+    colorPreview:SetPoint("TOPLEFT", colorButton, "TOPLEFT", 2, -2)
+    colorPreview:SetPoint("BOTTOMRIGHT", colorButton, "BOTTOMRIGHT", -2, 2)
+    colorButton.colorPreview = colorPreview
+    
+    local function UpdateColorPreview()
+        local r = Config:Get("crosshairColorR") or 1.0
+        local g = Config:Get("crosshairColorG") or 1.0
+        local b = Config:Get("crosshairColorB") or 1.0
+        local a = Config:Get("crosshairColorA") or 0.8
+        colorPreview:SetTexture(r, g, b, a)
+        colorButton:SetBackdropColor(r, g, b, 1)
+    end
+    
+    colorButton:SetScript("OnClick", function()
+        local r = Config:Get("crosshairColorR") or 1.0
+        local g = Config:Get("crosshairColorG") or 1.0
+        local b = Config:Get("crosshairColorB") or 1.0
+        local a = Config:Get("crosshairColorA") or 0.8
+        
+        -- Ensure ColorPickerFrame appears above config frame
+        ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        ColorPickerFrame:SetFrameLevel(2000)
+        
+        -- Ensure child buttons are also on top
+        if ColorPickerOkayButton then
+            ColorPickerOkayButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerOkayButton:SetFrameLevel(2001)
+        end
+        if ColorPickerCancelButton then
+            ColorPickerCancelButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerCancelButton:SetFrameLevel(2001)
+        end
+        
+        -- Show color picker
+        ColorPickerFrame.func = function()
+            local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+            local newA = 1 - OpacitySliderFrame:GetValue()
+            
+            Config:Set("crosshairColorR", newR)
+            Config:Set("crosshairColorG", newG)
+            Config:Set("crosshairColorB", newB)
+            Config:Set("crosshairColorA", newA)
+            UpdateColorPreview()
+            Config:UpdateCrosshair()
+        end
+        
+        ColorPickerFrame.opacityFunc = function()
+            local newA = 1 - OpacitySliderFrame:GetValue()
+            Config:Set("crosshairColorA", newA)
+            UpdateColorPreview()
+            Config:UpdateCrosshair()
+        end
+        
+        ColorPickerFrame:SetColorRGB(r, g, b)
+        OpacitySliderFrame:SetValue(1 - a)
+        ColorPickerFrame.hasOpacity = true
+        ColorPickerFrame.opacity = 1 - a
+        
+        -- Use a small delay to ensure frame levels are set before showing
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            ColorPickerFrame:Show()
+        end)
+        delayFrame:Show()
+    end)
+    UpdateColorPreview()
+    
     -- Help text
     local helpText = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    helpText:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -20)
+    helpText:SetPoint("TOPLEFT", colorLabel, "BOTTOMLEFT", 0, -10)
     helpText:SetWidth(260)
     helpText:SetJustifyH("LEFT")
-    helpText:SetText(T("X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels."))
+    helpText:SetText(T("X/Y offset from screen center. Use negative values to move left/down. Size: 4-100 pixels. Type: Cross shows lines, Dot shows only center dot."))
     
     self.contentSections["interface"] = section
 end
@@ -1219,6 +1432,18 @@ function Config:ShowSection(sectionId)
     end
     
     self.currentSection = sectionId
+    
+    -- Refresh cursor navigation to detect dropdown buttons and other elements
+    if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+                ConsoleExperience.cursor:RefreshFrame()
+            end
+        end)
+        delayFrame:Show()
+    end
 end
 
 -- ============================================================================
@@ -1242,6 +1467,18 @@ function Config:Show()
         self:CreateMainFrame()
     end
     self.frame:Show()
+    
+    -- Refresh cursor navigation to include dropdown buttons
+    if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            if ConsoleExperience.cursor and ConsoleExperience.cursor.RefreshFrame then
+                ConsoleExperience.cursor:RefreshFrame()
+            end
+        end)
+        delayFrame:Show()
+    end
 end
 
 function Config:Hide()
@@ -1360,6 +1597,11 @@ function Config:UpdateCrosshair()
     local xOffset = self:Get("crosshairX") or 0
     local yOffset = self:Get("crosshairY") or 0
     local size = self:Get("crosshairSize") or 24
+    local crosshairType = self:Get("crosshairType") or "cross"
+    local r = self:Get("crosshairColorR") or 1.0
+    local g = self:Get("crosshairColorG") or 1.0
+    local b = self:Get("crosshairColorB") or 1.0
+    local a = self:Get("crosshairColorA") or 0.8
     local thickness = math.max(2, math.floor(size / 12))
     
     -- Update position
@@ -1368,19 +1610,44 @@ function Config:UpdateCrosshair()
     self.crosshairFrame:SetWidth(size + 8)
     self.crosshairFrame:SetHeight(size + 8)
     
-    -- Update crosshair line sizes
-    if self.crosshairFrame.hLine then
-        self.crosshairFrame.hLine:SetWidth(size)
-        self.crosshairFrame.hLine:SetHeight(thickness)
-    end
-    if self.crosshairFrame.vLine then
-        self.crosshairFrame.vLine:SetWidth(thickness)
-        self.crosshairFrame.vLine:SetHeight(size)
-    end
-    if self.crosshairFrame.dot then
-        local dotSize = math.max(2, math.floor(size / 6))
-        self.crosshairFrame.dot:SetWidth(dotSize)
-        self.crosshairFrame.dot:SetHeight(dotSize)
+    -- Update crosshair based on type
+    if crosshairType == "dot" then
+        -- Dot only - hide lines, show dot with configured color
+        if self.crosshairFrame.hLine then
+            self.crosshairFrame.hLine:Hide()
+        end
+        if self.crosshairFrame.vLine then
+            self.crosshairFrame.vLine:Hide()
+        end
+        if self.crosshairFrame.dot then
+            local dotSize = math.max(2, math.floor(size / 6))
+            self.crosshairFrame.dot:SetWidth(dotSize)
+            self.crosshairFrame.dot:SetHeight(dotSize)
+            self.crosshairFrame.dot:SetTexture(r, g, b, a)
+            self.crosshairFrame.dot:Show()
+        end
+    else
+        -- Cross - show lines and dot (dot uses red tint for visibility in cross mode)
+        if self.crosshairFrame.hLine then
+            self.crosshairFrame.hLine:SetWidth(size)
+            self.crosshairFrame.hLine:SetHeight(thickness)
+            self.crosshairFrame.hLine:SetTexture(r, g, b, a)
+            self.crosshairFrame.hLine:Show()
+        end
+        if self.crosshairFrame.vLine then
+            self.crosshairFrame.vLine:SetWidth(thickness)
+            self.crosshairFrame.vLine:SetHeight(size)
+            self.crosshairFrame.vLine:SetTexture(r, g, b, a)
+            self.crosshairFrame.vLine:Show()
+        end
+        if self.crosshairFrame.dot then
+            local dotSize = math.max(2, math.floor(size / 6))
+            self.crosshairFrame.dot:SetWidth(dotSize)
+            self.crosshairFrame.dot:SetHeight(dotSize)
+            -- Dot uses red tint for visibility when lines are present (original behavior)
+            self.crosshairFrame.dot:SetTexture(r, g * 0.2, b * 0.2, a)
+            self.crosshairFrame.dot:Show()
+        end
     end
     
     if enabled then
