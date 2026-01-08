@@ -33,6 +33,7 @@ Config.DEFAULTS = {
     barStarPadding = 600,  -- Padding between left and right star centers
     barScale = 1.0,
     barAppearance = "classic",  -- "classic" or "modern"
+    autoRankEnabled = true,  -- Automatically update spells to highest rank
     -- Chat settings
     chatWidth = 400,
     chatHeight = 150,
@@ -1376,6 +1377,42 @@ function Config:CreateBarsSection()
         UIDropDownMenu_SetSelectedValue(appearanceDropdown, currentAppearance)
         UIDropDownMenu_SetText(currentAppearance == "classic" and T("Classic") or T("Modern"), appearanceDropdown)
         CE_Debug("Action bar layout reset to defaults")
+    end)
+    
+    -- Auto Spell Rank section
+    local autoRankTitle = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    autoRankTitle:SetPoint("TOPLEFT", resetButton, "BOTTOMLEFT", 0, -25)
+    autoRankTitle:SetText(T("Auto Spell Rank"))
+    
+    -- Auto-rank checkbox
+    local autoRankCheck = CreateFrame("CheckButton", "CEConfigAutoRankEnabled", section, "UICheckButtonTemplate")
+    autoRankCheck:SetPoint("TOPLEFT", autoRankTitle, "BOTTOMLEFT", 0, -5)
+    autoRankCheck:SetChecked(Config:Get("autoRankEnabled"))
+    autoRankCheck:SetScript("OnClick", function()
+        local checked = this:GetChecked() == 1
+        Config:Set("autoRankEnabled", checked)
+    end)
+    local autoRankLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    autoRankLabel:SetPoint("LEFT", autoRankCheck, "RIGHT", 5, 0)
+    autoRankLabel:SetText(T("Auto-update spells to highest rank"))
+    
+    -- Auto-rank description
+    local autoRankDesc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    autoRankDesc:SetPoint("TOPLEFT", autoRankCheck, "BOTTOMLEFT", 0, -5)
+    autoRankDesc:SetWidth(260)
+    autoRankDesc:SetJustifyH("LEFT")
+    autoRankDesc:SetText(T("When enabled, spells on action bars will automatically be updated to the highest rank when you learn a new spell rank."))
+    
+    -- Manual update button
+    local updateRanksButton = CreateFrame("Button", "CEConfigUpdateRanks", section, "UIPanelButtonTemplate")
+    updateRanksButton:SetWidth(150)
+    updateRanksButton:SetHeight(22)
+    updateRanksButton:SetPoint("TOPLEFT", autoRankDesc, "BOTTOMLEFT", 0, -10)
+    updateRanksButton:SetText(T("Update Ranks Now"))
+    updateRanksButton:SetScript("OnClick", function()
+        if ConsoleExperience.autorank and ConsoleExperience.autorank.ManualUpdate then
+            ConsoleExperience.autorank:ManualUpdate()
+        end
     end)
     
     self.contentSections["bars"] = section

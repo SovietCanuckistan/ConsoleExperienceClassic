@@ -38,6 +38,11 @@ ConsoleExperience:SetScript("OnEvent", function()
             ConsoleExperience.actionbars:Initialize()
         end
         
+        -- Initialize auto spell rank module
+        if ConsoleExperience.autorank and ConsoleExperience.autorank.Initialize then
+            ConsoleExperience.autorank:Initialize()
+        end
+        
         -- Initialize cursor tooltip module
         if ConsoleExperience.cursor and ConsoleExperience.cursor.tooltip and ConsoleExperience.cursor.tooltip.Initialize then
             ConsoleExperience.cursor.tooltip:Initialize()
