@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.8.1...v0.9.0) (2026-01-08)
+
+
+### Features
+
+* add castbar module ([17f3fd5](https://github.com/pepordev/ConsoleExperienceClassic/commit/17f3fd54a3faf7c9c184f00bc8d489892d2f00a7))
+
+
+### Bug Fixes
+
+* correct chat strata ([939451c](https://github.com/pepordev/ConsoleExperienceClassic/commit/939451c5b78dc5508bcec118546f898bfbaade92))
+
 ## [0.8.1](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.8.0...v0.8.1) (2026-01-07)
 
 
