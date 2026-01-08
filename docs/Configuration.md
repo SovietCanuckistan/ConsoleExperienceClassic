@@ -44,6 +44,16 @@ Open the configuration panel with `/ce` or `/consoleexperience`.
 |---------|-------------|---------|
 | Auto-update spells | Update to highest rank automatically | On |
 
+### Side Action Bars (Touch Screen)
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Enable Left Side Bar | Show left vertical bar | Off |
+| Enable Right Side Bar | Show right vertical bar | Off |
+| Left Buttons (1-5) | Number of buttons on left bar | 3 |
+| Right Buttons (1-5) | Number of buttons on right bar | 3 |
+
+> **Note:** Side bars use action slots 41-45 (left) and 46-50 (right). They share button size, padding, and scale settings with the main action bars.
+
 ## Chat Settings
 
 | Setting | Description | Default |

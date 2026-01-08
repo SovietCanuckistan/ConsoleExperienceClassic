@@ -34,6 +34,11 @@ Config.DEFAULTS = {
     barScale = 1.0,
     barAppearance = "classic",  -- "classic" or "modern"
     autoRankEnabled = true,  -- Automatically update spells to highest rank
+    -- Side Action Bars (touch screen)
+    sideBarLeftEnabled = false,  -- Left side bar disabled by default
+    sideBarRightEnabled = false,  -- Right side bar disabled by default
+    sideBarLeftButtons = 3,  -- Number of buttons on left bar (1-5)
+    sideBarRightButtons = 3,  -- Number of buttons on right bar (1-5)
     -- Chat settings
     chatWidth = 400,
     chatHeight = 150,
@@ -1415,6 +1420,83 @@ function Config:CreateBarsSection()
         end
     end)
     
+    -- Side Action Bars section (for touch screen)
+    local sideBarTitle = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    sideBarTitle:SetPoint("TOPLEFT", updateRanksButton, "BOTTOMLEFT", 0, -25)
+    sideBarTitle:SetText(T("Side Action Bars (Touch Screen)"))
+    
+    local sideBarDesc = section:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sideBarDesc:SetPoint("TOPLEFT", sideBarTitle, "BOTTOMLEFT", 0, -5)
+    sideBarDesc:SetWidth(260)
+    sideBarDesc:SetJustifyH("LEFT")
+    sideBarDesc:SetText(T("Vertical action bars on screen edges for touch input. No default keybindings."))
+    
+    -- Left Side Bar Enable
+    local leftBarCheck = CreateFrame("CheckButton", "CEConfigLeftSideBar", section, "UICheckButtonTemplate")
+    leftBarCheck:SetPoint("TOPLEFT", sideBarDesc, "BOTTOMLEFT", 0, -10)
+    leftBarCheck:SetChecked(Config:Get("sideBarLeftEnabled"))
+    leftBarCheck:SetScript("OnClick", function()
+        local checked = this:GetChecked() == 1
+        Config:Set("sideBarLeftEnabled", checked)
+        if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+            ConsoleExperience.actionbars:UpdateSideBars()
+        end
+    end)
+    local leftBarLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    leftBarLabel:SetPoint("LEFT", leftBarCheck, "RIGHT", 5, 0)
+    leftBarLabel:SetText(T("Enable Left Side Bar"))
+    
+    -- Left Side Bar Button Count
+    local leftCountLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    leftCountLabel:SetPoint("TOPLEFT", leftBarCheck, "BOTTOMLEFT", 0, -5)
+    leftCountLabel:SetText(T("Left Buttons (1-5)") .. ":")
+    
+    local leftCountEditBox = self:CreateEditBox(section, 40,
+        function() return tostring(Config:Get("sideBarLeftButtons") or 3) end,
+        function(value)
+            local num = tonumber(value) or 3
+            if num < 1 then num = 1 end
+            if num > 5 then num = 5 end
+            Config:Set("sideBarLeftButtons", num)
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+                ConsoleExperience.actionbars:UpdateSideBars()
+            end
+        end)
+    leftCountEditBox:SetPoint("LEFT", leftCountLabel, "RIGHT", 10, 0)
+    
+    -- Right Side Bar Enable
+    local rightBarCheck = CreateFrame("CheckButton", "CEConfigRightSideBar", section, "UICheckButtonTemplate")
+    rightBarCheck:SetPoint("TOPLEFT", leftCountLabel, "BOTTOMLEFT", 0, -10)
+    rightBarCheck:SetChecked(Config:Get("sideBarRightEnabled"))
+    rightBarCheck:SetScript("OnClick", function()
+        local checked = this:GetChecked() == 1
+        Config:Set("sideBarRightEnabled", checked)
+        if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+            ConsoleExperience.actionbars:UpdateSideBars()
+        end
+    end)
+    local rightBarLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    rightBarLabel:SetPoint("LEFT", rightBarCheck, "RIGHT", 5, 0)
+    rightBarLabel:SetText(T("Enable Right Side Bar"))
+    
+    -- Right Side Bar Button Count
+    local rightCountLabel = section:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    rightCountLabel:SetPoint("TOPLEFT", rightBarCheck, "BOTTOMLEFT", 0, -5)
+    rightCountLabel:SetText(T("Right Buttons (1-5)") .. ":")
+    
+    local rightCountEditBox = self:CreateEditBox(section, 40,
+        function() return tostring(Config:Get("sideBarRightButtons") or 3) end,
+        function(value)
+            local num = tonumber(value) or 3
+            if num < 1 then num = 1 end
+            if num > 5 then num = 5 end
+            Config:Set("sideBarRightButtons", num)
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+                ConsoleExperience.actionbars:UpdateSideBars()
+            end
+        end)
+    rightCountEditBox:SetPoint("LEFT", rightCountLabel, "RIGHT", 10, 0)
+    
     self.contentSections["bars"] = section
 end
 
@@ -2421,6 +2503,11 @@ function Config:UpdateActionBarLayout()
     -- Update chat layout after action bars are positioned
     if ConsoleExperience.chat and ConsoleExperience.chat.UpdateChatLayout then
         ConsoleExperience.chat:UpdateChatLayout()
+    end
+    
+    -- Update side action bars to match new settings
+    if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+        ConsoleExperience.actionbars:UpdateSideBars()
     end
 end
 

@@ -437,6 +437,16 @@ function Placement:UpdateAllButtons()
     for actionSlot, button in pairs(self.buttons) do
         self:UpdateButton(button)
     end
+    
+    -- Also update side bar buttons in placement frame
+    for i = 1, 5 do
+        if self.sideBarLeftButtons[i] then
+            self:UpdateSideBarPlacementButton(self.sideBarLeftButtons[i])
+        end
+        if self.sideBarRightButtons[i] then
+            self:UpdateSideBarPlacementButton(self.sideBarRightButtons[i])
+        end
+    end
 end
 
 function Placement:RefreshIcons()
@@ -500,6 +510,286 @@ function Placement:RefreshIcons()
 end
 
 -- ============================================================================
+-- Side Bar Buttons in Placement Frame
+-- ============================================================================
+
+-- Storage for side bar placement buttons
+Placement.sideBarLeftButtons = {}
+Placement.sideBarRightButtons = {}
+Placement.sideBarLeftFrame = nil
+Placement.sideBarRightFrame = nil
+
+function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex, side)
+    local buttonName = "CEPlacementButton" .. actionSlot
+    local button = CreateFrame("Button", buttonName, parent)
+    
+    button:SetWidth(BUTTON_SIZE)
+    button:SetHeight(BUTTON_SIZE)
+    
+    -- Background
+    button:SetBackdrop({
+        bgFile = "Interface\\Buttons\\UI-Quickslot2",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = false,
+        tileSize = 0,
+        edgeSize = 8,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)
+    button:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+    
+    -- Icon texture
+    local iconSize = BUTTON_SIZE - 10
+    local icon = button:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    icon:SetWidth(iconSize)
+    icon:SetHeight(iconSize)
+    icon:SetPoint("CENTER", button, "CENTER", 0, 0)
+    icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+    button.icon = icon
+    
+    -- Store action slot and info
+    button.actionSlot = actionSlot
+    button.buttonIndex = buttonIndex
+    button.pageIndex = 1  -- Side bars don't have pages, use 1 for consistency
+    button.side = side
+    
+    -- Highlight texture
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+    highlight:SetBlendMode("ADD")
+    highlight:SetAllPoints(button)
+    
+    -- Click handler - place cursor item
+    button:SetScript("OnClick", function()
+        if CursorHasItem() or CursorHasSpell() then
+            PlaceAction(this.actionSlot)
+            CE_Debug("Placed item in side bar slot " .. this.actionSlot)
+            
+            Placement:UpdateSideBarPlacementButton(this)
+            
+            -- Update side bar buttons on main UI
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateAllSideBarButtons then
+                ConsoleExperience.actionbars:UpdateAllSideBarButtons()
+            end
+            
+            if ConsoleExperience.cursor then
+                ConsoleExperience.cursor:ClearHeldItemTexture()
+            end
+        else
+            PickupAction(this.actionSlot)
+            Placement:UpdateSideBarPlacementButton(this)
+            
+            local texture = GetActionTexture(this.actionSlot)
+            if texture and ConsoleExperience.cursor and ConsoleExperience.cursor.SetHeldItemTexture then
+                ConsoleExperience.cursor:SetHeldItemTexture(texture)
+            end
+        end
+    end)
+    
+    -- Right-click to pick up
+    button:SetScript("OnMouseDown", function()
+        if arg1 == "RightButton" then
+            PickupAction(this.actionSlot)
+            Placement:UpdateSideBarPlacementButton(this)
+            
+            local texture = GetActionTexture(this.actionSlot)
+            if texture and ConsoleExperience.cursor and ConsoleExperience.cursor.SetHeldItemTexture then
+                ConsoleExperience.cursor:SetHeldItemTexture(texture)
+            end
+        end
+    end)
+    
+    -- Tooltip
+    button:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        if HasAction(this.actionSlot) then
+            GameTooltip:SetAction(this.actionSlot)
+        else
+            local sideName = this.side == "left" and "Left" or "Right"
+            GameTooltip:SetText(sideName .. " Side Bar " .. this.buttonIndex)
+            GameTooltip:AddLine("Empty slot (touch screen)", 0.7, 0.7, 0.7)
+        end
+        GameTooltip:Show()
+    end)
+    
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    -- Receive drag
+    button:RegisterForDrag("LeftButton")
+    button:SetScript("OnReceiveDrag", function()
+        if CursorHasItem() or CursorHasSpell() then
+            PlaceAction(this.actionSlot)
+            Placement:UpdateSideBarPlacementButton(this)
+            
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateAllSideBarButtons then
+                ConsoleExperience.actionbars:UpdateAllSideBarButtons()
+            end
+            
+            if ConsoleExperience.cursor and ConsoleExperience.cursor.ClearHeldItemTexture then
+                ConsoleExperience.cursor:ClearHeldItemTexture()
+            end
+        end
+    end)
+    
+    return button
+end
+
+function Placement:UpdateSideBarPlacementButton(button)
+    if not button then return end
+    
+    local actionSlot = button.actionSlot
+    local texture = GetActionTexture(actionSlot)
+    
+    if texture then
+        button.icon:SetTexture(texture)
+        button.icon:Show()
+        button:SetBackdropColor(0.2, 0.2, 0.2, 1.0)
+    else
+        button.icon:Hide()
+        button:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
+    end
+end
+
+function Placement:UpdateSideBarButtons()
+    if not self.frame then return end
+    
+    local config = ConsoleExperience.config
+    if not config then return end
+    
+    local leftEnabled = config:Get("sideBarLeftEnabled")
+    local rightEnabled = config:Get("sideBarRightEnabled")
+    local leftCount = config:Get("sideBarLeftButtons") or 3
+    local rightCount = config:Get("sideBarRightButtons") or 3
+    
+    -- Clamp counts
+    if leftCount < 1 then leftCount = 1 end
+    if leftCount > 5 then leftCount = 5 end
+    if rightCount < 1 then rightCount = 1 end
+    if rightCount > 5 then rightCount = 5 end
+    
+    -- Side bar action slot offsets
+    local LEFT_OFFSET = 40   -- Slots 41-45
+    local RIGHT_OFFSET = 45  -- Slots 46-50
+    
+    -- Create/update left side bar container in placement frame
+    if not self.sideBarLeftFrame then
+        self.sideBarLeftFrame = CreateFrame("Frame", "CEPlacementSideBarLeft", self.frame)
+        self.sideBarLeftFrame:SetFrameLevel(self.frame:GetFrameLevel() + 1)
+        
+        -- Label for left side bar
+        local label = self.sideBarLeftFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        label:SetPoint("TOP", self.sideBarLeftFrame, "TOP", 0, 15)
+        label:SetText("Left Touch")
+        self.sideBarLeftFrame.label = label
+    end
+    
+    if not self.sideBarRightFrame then
+        self.sideBarRightFrame = CreateFrame("Frame", "CEPlacementSideBarRight", self.frame)
+        self.sideBarRightFrame:SetFrameLevel(self.frame:GetFrameLevel() + 1)
+        
+        -- Label for right side bar
+        local label = self.sideBarRightFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        label:SetPoint("TOP", self.sideBarRightFrame, "TOP", 0, 15)
+        label:SetText("Right Touch")
+        self.sideBarRightFrame.label = label
+    end
+    
+    -- Position side bar frames below the main grid
+    local mainGridBottom = -70 - ((NUM_PAGES - 1) * (BUTTON_SIZE + BUTTON_SPACING)) - BUTTON_SIZE - 20
+    
+    -- Left side bar
+    if leftEnabled then
+        local totalWidth = (BUTTON_SIZE * leftCount) + (BUTTON_SPACING * (leftCount - 1))
+        self.sideBarLeftFrame:SetWidth(totalWidth)
+        self.sideBarLeftFrame:SetHeight(BUTTON_SIZE + 20)
+        self.sideBarLeftFrame:ClearAllPoints()
+        self.sideBarLeftFrame:SetPoint("TOPLEFT", self.frame, "TOPLEFT", FRAME_PADDING + 50, mainGridBottom)
+        self.sideBarLeftFrame:Show()
+        
+        -- Create/update buttons horizontally
+        for i = 1, 5 do
+            if i <= leftCount then
+                local actionSlot = LEFT_OFFSET + i
+                if not self.sideBarLeftButtons[i] then
+                    self.sideBarLeftButtons[i] = self:CreateSideBarPlacementButton(self.sideBarLeftFrame, actionSlot, i, "left")
+                end
+                local button = self.sideBarLeftButtons[i]
+                button.actionSlot = actionSlot
+                button:ClearAllPoints()
+                local xOffset = (i - 1) * (BUTTON_SIZE + BUTTON_SPACING)
+                button:SetPoint("TOPLEFT", self.sideBarLeftFrame, "TOPLEFT", xOffset, 0)
+                button:Show()
+                self:UpdateSideBarPlacementButton(button)
+            else
+                if self.sideBarLeftButtons[i] then
+                    self.sideBarLeftButtons[i]:Hide()
+                end
+            end
+        end
+    else
+        if self.sideBarLeftFrame then
+            self.sideBarLeftFrame:Hide()
+        end
+        for i = 1, 5 do
+            if self.sideBarLeftButtons[i] then
+                self.sideBarLeftButtons[i]:Hide()
+            end
+        end
+    end
+    
+    -- Right side bar
+    if rightEnabled then
+        local totalWidth = (BUTTON_SIZE * rightCount) + (BUTTON_SPACING * (rightCount - 1))
+        self.sideBarRightFrame:SetWidth(totalWidth)
+        self.sideBarRightFrame:SetHeight(BUTTON_SIZE + 20)
+        self.sideBarRightFrame:ClearAllPoints()
+        self.sideBarRightFrame:SetPoint("TOPRIGHT", self.frame, "TOPRIGHT", -FRAME_PADDING, mainGridBottom)
+        self.sideBarRightFrame:Show()
+        
+        -- Create/update buttons horizontally
+        for i = 1, 5 do
+            if i <= rightCount then
+                local actionSlot = RIGHT_OFFSET + i
+                if not self.sideBarRightButtons[i] then
+                    self.sideBarRightButtons[i] = self:CreateSideBarPlacementButton(self.sideBarRightFrame, actionSlot, i, "right")
+                end
+                local button = self.sideBarRightButtons[i]
+                button.actionSlot = actionSlot
+                button:ClearAllPoints()
+                local xOffset = -((rightCount - i) * (BUTTON_SIZE + BUTTON_SPACING))
+                button:SetPoint("TOPRIGHT", self.sideBarRightFrame, "TOPRIGHT", xOffset, 0)
+                button:Show()
+                self:UpdateSideBarPlacementButton(button)
+            else
+                if self.sideBarRightButtons[i] then
+                    self.sideBarRightButtons[i]:Hide()
+                end
+            end
+        end
+    else
+        if self.sideBarRightFrame then
+            self.sideBarRightFrame:Hide()
+        end
+        for i = 1, 5 do
+            if self.sideBarRightButtons[i] then
+                self.sideBarRightButtons[i]:Hide()
+            end
+        end
+    end
+    
+    -- Adjust main frame height if side bars are enabled
+    if leftEnabled or rightEnabled then
+        local baseHeight = (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * (NUM_PAGES - 1)) + (FRAME_PADDING * 2) + 80
+        self.frame:SetHeight(baseHeight + BUTTON_SIZE + 40)  -- Extra space for side bar row
+    else
+        local baseHeight = (BUTTON_SIZE * NUM_PAGES) + (BUTTON_SPACING * (NUM_PAGES - 1)) + (FRAME_PADDING * 2) + 80
+        self.frame:SetHeight(baseHeight)
+    end
+end
+
+-- ============================================================================
 -- Show/Hide
 -- ============================================================================
 
@@ -536,6 +826,9 @@ function Placement:Show()
     
     -- Update button visibility based on config
     self:UpdateButtonVisibility()
+    
+    -- Create/update side bar buttons in placement frame
+    self:UpdateSideBarButtons()
     
     self:UpdateAllButtons()
     self.frame:Show()

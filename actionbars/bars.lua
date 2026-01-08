@@ -98,6 +98,7 @@ function ActionBars:Initialize()
     self:HideDefaultBars()
     self:CreateModifierFrame()
     self:UpdateAllButtons()
+    self:CreateSideBars()
     self:InitializeBagBar()
     self:HookCooldownFrame()
 end
@@ -1271,4 +1272,455 @@ end
 
 function ConsoleActionButton_OnEnter()
     ConsoleExperience.actionbars:ButtonOnEnter(this)
+end
+
+-- ============================================================================
+-- Side Action Bars (Touch Screen)
+-- ============================================================================
+
+-- Side bar action slot offsets (using slots 41-50, which are typically unused)
+-- Left bar: slots 41-45 (CE_ACTION_41 to CE_ACTION_45)
+-- Right bar: slots 46-50 (CE_ACTION_46 to CE_ACTION_50)
+ActionBars.SIDE_BAR_LEFT_OFFSET = 40   -- Slots 41-45
+ActionBars.SIDE_BAR_RIGHT_OFFSET = 45  -- Slots 46-50
+
+-- Storage for side bar buttons
+ActionBars.sideBarLeftButtons = {}
+ActionBars.sideBarRightButtons = {}
+ActionBars.sideBarLeftFrame = nil
+ActionBars.sideBarRightFrame = nil
+
+function ActionBars:CreateSideBarButton(parent, buttonIndex, side)
+    local offset = side == "left" and self.SIDE_BAR_LEFT_OFFSET or self.SIDE_BAR_RIGHT_OFFSET
+    local actionSlot = offset + buttonIndex
+    local buttonName = "CESideBar" .. side .. "Button" .. buttonIndex
+    
+    -- Create button frame
+    local button = CreateFrame("CheckButton", buttonName, parent)
+    button:SetWidth(40)
+    button:SetHeight(40)
+    button.actionSlot = actionSlot
+    button.sideBarIndex = buttonIndex
+    button.sideBarSide = side
+    
+    -- Background texture
+    local background = button:CreateTexture(buttonName .. "Background", "BACKGROUND")
+    background:SetTexture("Interface\\Buttons\\UI-Quickslot")
+    background:SetWidth(64)
+    background:SetHeight(64)
+    background:SetPoint("CENTER", button, "CENTER", 0, 0)
+    button.background = background
+    
+    -- Icon texture
+    local icon = button:CreateTexture(buttonName .. "Icon", "BORDER")
+    icon:SetWidth(36)
+    icon:SetHeight(36)
+    icon:SetPoint("CENTER", button, "CENTER", 0, 0)
+    button.icon = icon
+    
+    -- Flash texture
+    local flash = button:CreateTexture(buttonName .. "Flash", "ARTWORK")
+    flash:SetTexture("Interface\\Buttons\\UI-QuickslotRed")
+    flash:SetWidth(36)
+    flash:SetHeight(36)
+    flash:SetPoint("CENTER", button, "CENTER", 0, 0)
+    flash:Hide()
+    button.flash = flash
+    
+    -- Count text
+    local count = button:CreateFontString(buttonName .. "Count", "ARTWORK", "NumberFontNormal")
+    count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+    button.count = count
+    
+    -- Normal texture
+    local normalTexture = button:CreateTexture(buttonName .. "NormalTexture")
+    normalTexture:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    normalTexture:SetWidth(64)
+    normalTexture:SetHeight(64)
+    normalTexture:SetPoint("CENTER", button, "CENTER", 0, 0)
+    button:SetNormalTexture(normalTexture)
+    
+    -- Pushed texture
+    button:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
+    
+    -- Highlight texture
+    button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    
+    -- Checked texture
+    button:SetCheckedTexture("Interface\\Buttons\\CheckButtonHilight", "ADD")
+    
+    -- Create cooldown frame
+    local cooldown = CreateFrame("Model", buttonName .. "Cooldown", button, "CooldownFrameTemplate")
+    cooldown:SetAllPoints(button)
+    button.cooldown = cooldown
+    
+    -- Initialize state
+    button.flashing = 0
+    button.flashtime = 0
+    button.rangeTimer = nil
+    button.vertexstate = 0
+    
+    -- Register for clicks and drag
+    button:RegisterForDrag("LeftButton", "RightButton")
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    
+    -- Register events
+    button:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+    button:RegisterEvent("ACTIONBAR_UPDATE_STATE")
+    button:RegisterEvent("ACTIONBAR_UPDATE_USABLE")
+    button:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
+    button:RegisterEvent("PLAYER_ENTER_COMBAT")
+    button:RegisterEvent("PLAYER_LEAVE_COMBAT")
+    button:RegisterEvent("UNIT_INVENTORY_CHANGED")
+    
+    -- Event handler
+    button:SetScript("OnEvent", function()
+        ActionBars:SideBarButtonOnEvent(this, event)
+    end)
+    
+    -- Update handler
+    button:SetScript("OnUpdate", function()
+        ActionBars:SideBarButtonOnUpdate(this, arg1)
+    end)
+    
+    -- Click handler
+    button:SetScript("OnClick", function()
+        ActionBars:SideBarButtonOnClick(this, arg1)
+    end)
+    
+    -- Drag handlers
+    button:SetScript("OnDragStart", function()
+        if not IsShiftKeyDown() then return end
+        PickupAction(this.actionSlot)
+        ActionBars:UpdateSideBarButton(this)
+    end)
+    
+    button:SetScript("OnReceiveDrag", function()
+        PlaceAction(this.actionSlot)
+        ActionBars:UpdateSideBarButton(this)
+    end)
+    
+    -- Tooltip
+    button:SetScript("OnEnter", function()
+        if HasAction(this.actionSlot) then
+            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            GameTooltip:SetAction(this.actionSlot)
+        end
+    end)
+    
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    return button
+end
+
+function ActionBars:SideBarButtonOnEvent(button, event)
+    if event == "ACTIONBAR_SLOT_CHANGED" then
+        if arg1 == 0 or arg1 == button.actionSlot then
+            self:UpdateSideBarButton(button)
+        end
+    elseif event == "ACTIONBAR_UPDATE_STATE" or 
+           event == "ACTIONBAR_UPDATE_USABLE" or
+           event == "PLAYER_ENTER_COMBAT" or
+           event == "PLAYER_LEAVE_COMBAT" or
+           event == "UNIT_INVENTORY_CHANGED" then
+        self:UpdateSideBarButton(button)
+    elseif event == "ACTIONBAR_UPDATE_COOLDOWN" then
+        self:UpdateSideBarButtonCooldown(button)
+    end
+end
+
+function ActionBars:SideBarButtonOnUpdate(button, elapsed)
+    -- Range check timer
+    if button.rangeTimer then
+        button.rangeTimer = button.rangeTimer - elapsed
+        if button.rangeTimer <= 0 then
+            local inRange = IsActionInRange(button.actionSlot)
+            if inRange == 0 then
+                button.icon:SetVertexColor(1.0, 0.1, 0.1)
+            else
+                button.icon:SetVertexColor(1.0, 1.0, 1.0)
+            end
+            button.rangeTimer = self.RANGE_CHECK_TIME
+        end
+    end
+    
+    -- Flashing
+    if button.flashing == 1 then
+        button.flashtime = button.flashtime - elapsed
+        if button.flashtime <= 0 then
+            if button.flash:IsVisible() then
+                button.flash:Hide()
+            else
+                button.flash:Show()
+            end
+            button.flashtime = self.FLASH_TIME
+        end
+    end
+end
+
+function ActionBars:SideBarButtonOnClick(button, mouseButton)
+    if mouseButton == "LeftButton" then
+        if IsShiftKeyDown() and not CursorHasItem() then
+            PickupAction(button.actionSlot)
+        else
+            UseAction(button.actionSlot, 0, 1)
+        end
+    elseif mouseButton == "RightButton" then
+        UseAction(button.actionSlot, 1, 1)
+    end
+    self:UpdateSideBarButton(button)
+end
+
+function ActionBars:UpdateSideBarButton(button)
+    local actionSlot = button.actionSlot
+    local texture = GetActionTexture(actionSlot)
+    
+    if texture then
+        button.icon:SetTexture(texture)
+        button.icon:Show()
+        button:SetAlpha(1.0)
+    else
+        button.icon:Hide()
+        button:SetAlpha(0.5)
+    end
+    
+    -- Update count
+    local count = GetActionCount(actionSlot)
+    if count > 1 then
+        button.count:SetText(count)
+        button.count:Show()
+    else
+        button.count:Hide()
+    end
+    
+    -- Update usable state
+    local isUsable, notEnoughMana = IsUsableAction(actionSlot)
+    if isUsable then
+        button.icon:SetVertexColor(1.0, 1.0, 1.0)
+    elseif notEnoughMana then
+        button.icon:SetVertexColor(0.5, 0.5, 1.0)
+    else
+        button.icon:SetVertexColor(0.4, 0.4, 0.4)
+    end
+    
+    -- Update cooldown
+    self:UpdateSideBarButtonCooldown(button)
+    
+    -- Update checked state (for auto-attack, etc)
+    if IsCurrentAction(actionSlot) or IsAutoRepeatAction(actionSlot) then
+        button:SetChecked(1)
+    else
+        button:SetChecked(0)
+    end
+    
+    -- Start range timer if action has range
+    if ActionHasRange(actionSlot) then
+        button.rangeTimer = self.RANGE_CHECK_TIME
+    else
+        button.rangeTimer = nil
+    end
+end
+
+function ActionBars:UpdateSideBarButtonCooldown(button)
+    local start, duration, enable = GetActionCooldown(button.actionSlot)
+    if start > 0 and duration > 0 and enable > 0 then
+        CooldownFrame_SetTimer(button.cooldown, start, duration, enable)
+    else
+        button.cooldown:Hide()
+    end
+end
+
+function ActionBars:CreateSideBars()
+    local config = ConsoleExperience.config
+    if not config then return end
+    
+    local buttonSize = config:Get("barButtonSize") or 40
+    local padding = 5
+    
+    -- Create left side bar frame
+    if not self.sideBarLeftFrame then
+        self.sideBarLeftFrame = CreateFrame("Frame", "CESideBarLeft", UIParent)
+        self.sideBarLeftFrame:SetFrameStrata("MEDIUM")
+    end
+    
+    -- Create right side bar frame
+    if not self.sideBarRightFrame then
+        self.sideBarRightFrame = CreateFrame("Frame", "CESideBarRight", UIParent)
+        self.sideBarRightFrame:SetFrameStrata("MEDIUM")
+    end
+    
+    -- Create/update buttons
+    self:UpdateSideBars()
+end
+
+function ActionBars:UpdateSideBars()
+    local config = ConsoleExperience.config
+    if not config then return end
+    
+    local buttonSize = config:Get("barButtonSize") or 60
+    local padding = config:Get("barPadding") or 65
+    local scale = config:Get("barScale") or 1.0
+    local appearance = config:Get("barAppearance") or "classic"
+    local leftEnabled = config:Get("sideBarLeftEnabled")
+    local rightEnabled = config:Get("sideBarRightEnabled")
+    local leftCount = config:Get("sideBarLeftButtons") or 3
+    local rightCount = config:Get("sideBarRightButtons") or 3
+    
+    -- Clamp counts
+    if leftCount < 1 then leftCount = 1 end
+    if leftCount > 5 then leftCount = 5 end
+    if rightCount < 1 then rightCount = 1 end
+    if rightCount > 5 then rightCount = 5 end
+    
+    -- Ensure frames exist
+    if not self.sideBarLeftFrame then
+        self.sideBarLeftFrame = CreateFrame("Frame", "CESideBarLeft", UIParent)
+        self.sideBarLeftFrame:SetFrameStrata("MEDIUM")
+    end
+    if not self.sideBarRightFrame then
+        self.sideBarRightFrame = CreateFrame("Frame", "CESideBarRight", UIParent)
+        self.sideBarRightFrame:SetFrameStrata("MEDIUM")
+    end
+    
+    -- Helper function to update button appearance
+    local function UpdateButtonAppearance(button)
+        button:SetWidth(buttonSize)
+        button:SetHeight(buttonSize)
+        button:SetScale(scale)
+        
+        -- Update icon size
+        if button.icon then
+            if appearance == "modern" then
+                button.icon:SetWidth(buttonSize * 0.70)
+                button.icon:SetHeight(buttonSize * 0.70)
+            else
+                button.icon:SetWidth(buttonSize - 4)
+                button.icon:SetHeight(buttonSize - 4)
+            end
+        end
+        
+        -- Update background size
+        if button.background then
+            button.background:SetWidth(buttonSize * 1.6)
+            button.background:SetHeight(buttonSize * 1.6)
+        end
+        
+        -- Update normal texture size
+        local normalTex = getglobal(button:GetName() .. "NormalTexture")
+        if normalTex then
+            normalTex:SetWidth(buttonSize * 1.6)
+            normalTex:SetHeight(buttonSize * 1.6)
+        end
+        
+        -- Update flash size
+        if button.flash then
+            button.flash:SetWidth(buttonSize - 4)
+            button.flash:SetHeight(buttonSize - 4)
+        end
+        
+        -- Update cooldown size
+        if button.cooldown then
+            local defaultCooldownSize = 36
+            local scaleFactor = buttonSize / defaultCooldownSize
+            button.cooldown:SetScale(scaleFactor)
+        end
+        
+        -- Apply button appearance styling
+        if self.ApplyButtonAppearance then
+            self:ApplyButtonAppearance(button)
+        end
+    end
+    
+    -- Update left side bar
+    if leftEnabled then
+        -- Use padding as center-to-center distance (same as main action bar)
+        local totalHeight = padding * (leftCount - 1) + buttonSize
+        self.sideBarLeftFrame:SetWidth(buttonSize)
+        self.sideBarLeftFrame:SetHeight(totalHeight)
+        self.sideBarLeftFrame:SetScale(scale)
+        self.sideBarLeftFrame:ClearAllPoints()
+        self.sideBarLeftFrame:SetPoint("LEFT", UIParent, "LEFT", 5, 0)
+        self.sideBarLeftFrame:Show()
+        
+        -- Create/update buttons
+        for i = 1, 5 do
+            if i <= leftCount then
+                if not self.sideBarLeftButtons[i] then
+                    self.sideBarLeftButtons[i] = self:CreateSideBarButton(self.sideBarLeftFrame, i, "left")
+                end
+                local button = self.sideBarLeftButtons[i]
+                UpdateButtonAppearance(button)
+                button:ClearAllPoints()
+                -- Position using padding as center-to-center distance, vertically centered
+                local yOffset = -((i - 1) * padding)
+                button:SetPoint("TOP", self.sideBarLeftFrame, "TOP", 0, yOffset)
+                button:Show()
+                self:UpdateSideBarButton(button)
+            else
+                if self.sideBarLeftButtons[i] then
+                    self.sideBarLeftButtons[i]:Hide()
+                end
+            end
+        end
+    else
+        self.sideBarLeftFrame:Hide()
+        for i = 1, 5 do
+            if self.sideBarLeftButtons[i] then
+                self.sideBarLeftButtons[i]:Hide()
+            end
+        end
+    end
+    
+    -- Update right side bar
+    if rightEnabled then
+        -- Use padding as center-to-center distance (same as main action bar)
+        local totalHeight = padding * (rightCount - 1) + buttonSize
+        self.sideBarRightFrame:SetWidth(buttonSize)
+        self.sideBarRightFrame:SetHeight(totalHeight)
+        self.sideBarRightFrame:SetScale(scale)
+        self.sideBarRightFrame:ClearAllPoints()
+        self.sideBarRightFrame:SetPoint("RIGHT", UIParent, "RIGHT", -5, 0)
+        self.sideBarRightFrame:Show()
+        
+        -- Create/update buttons
+        for i = 1, 5 do
+            if i <= rightCount then
+                if not self.sideBarRightButtons[i] then
+                    self.sideBarRightButtons[i] = self:CreateSideBarButton(self.sideBarRightFrame, i, "right")
+                end
+                local button = self.sideBarRightButtons[i]
+                UpdateButtonAppearance(button)
+                button:ClearAllPoints()
+                -- Position using padding as center-to-center distance, vertically centered
+                local yOffset = -((i - 1) * padding)
+                button:SetPoint("TOP", self.sideBarRightFrame, "TOP", 0, yOffset)
+                button:Show()
+                self:UpdateSideBarButton(button)
+            else
+                if self.sideBarRightButtons[i] then
+                    self.sideBarRightButtons[i]:Hide()
+                end
+            end
+        end
+    else
+        self.sideBarRightFrame:Hide()
+        for i = 1, 5 do
+            if self.sideBarRightButtons[i] then
+                self.sideBarRightButtons[i]:Hide()
+            end
+        end
+    end
+end
+
+function ActionBars:UpdateAllSideBarButtons()
+    for i = 1, 5 do
+        if self.sideBarLeftButtons[i] then
+            self:UpdateSideBarButton(self.sideBarLeftButtons[i])
+        end
+        if self.sideBarRightButtons[i] then
+            self:UpdateSideBarButton(self.sideBarRightButtons[i])
+        end
+    end
 end

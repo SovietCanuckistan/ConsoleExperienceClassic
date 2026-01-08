@@ -59,9 +59,43 @@ The addon shows controller button icons based on your selected controller type:
 
 Change this in Interface settings.
 
+## Side Action Bars (Touch Screen)
+
+Two optional vertical action bars designed for touch screen input. These bars have no default keybindings and are meant to be tapped directly on a touch-enabled display.
+
+### Position
+- **Left Bar**: Left edge of screen, vertically centered
+- **Right Bar**: Right edge of screen, vertically centered
+
+### Configuration
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Enable Left Side Bar | Show left touch bar | Off |
+| Enable Right Side Bar | Show right touch bar | Off |
+| Left Buttons (1-5) | Number of buttons on left bar | 3 |
+| Right Buttons (1-5) | Number of buttons on right bar | 3 |
+
+### Action Slots
+- Left bar uses action slots 41-45
+- Right bar uses action slots 46-50
+
+### Features
+- Same visual style as main action bars (button size, padding, scale)
+- Supports drag & drop (Shift+click to pick up)
+- Full functionality: cooldowns, range checking, usability colors
+- Appears in Placement Frame when enabled for easy setup
+
+### Use Cases
+- Touch screen devices (tablets, touch monitors)
+- Frequently used abilities that don't need keybinds
+- Consumables, mounts, or utility spells
+- Secondary rotation abilities
+
 ## Tips
 
 - Use the placement mode to fine-tune button positions
 - The right star typically holds your most-used abilities
 - Modifier buttons (triggers/bumpers) give you 3x the slots per star
 - Combine with macros for even more functionality
+- Side bars share size/padding settings with main action bars
