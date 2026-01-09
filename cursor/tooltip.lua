@@ -612,7 +612,7 @@ function Tooltip:ShowButtonTooltip(button)
             GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
             local label = button.label or "Text Input"
             local currentText = button:GetText() or ""
-            GameTooltip:SetText(label)
+            GameTooltip:SetText(tostring(label))
             if currentText ~= "" then
                 GameTooltip:AddLine("Current: " .. currentText, 0.7, 0.7, 0.7)
             end
@@ -627,7 +627,7 @@ function Tooltip:ShowButtonTooltip(button)
             local label = button.label or "Slider"
             local value = button:GetValue() or 0
             local min, max = button:GetMinMaxValues()
-            GameTooltip:SetText(label)
+            GameTooltip:SetText(tostring(label))
             GameTooltip:AddLine(string.format("Value: %.1f (%.1f - %.1f)", value, min, max), 0.7, 0.7, 0.7)
             -- tooltipText is added in OnShow handler (above actions)
             GameTooltip:Show()
@@ -638,9 +638,25 @@ function Tooltip:ShowButtonTooltip(button)
         if elementType == "checkbox" then
             GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
             -- Try to get label from stored property or button text
-            local label = button.label or (button.GetText and button:GetText()) or buttonName or "Checkbox"
+            local label = nil
+            -- If label is a FontString (has GetText), get the text from it
+            if button.label and type(button.label) == "table" and button.label.GetText then
+                label = button.label:GetText()
+            -- If label is already a string, use it directly
+            elseif button.label and type(button.label) == "string" then
+                label = button.label
+            end
+            if not label or label == "" then
+                label = button.GetText and button:GetText()
+            end
+            if not label or label == "" then
+                label = buttonName
+            end
+            if not label or label == "" then
+                label = "Checkbox"
+            end
             local checked = button:GetChecked() and "Enabled" or "Disabled"
-            GameTooltip:SetText(label)
+            GameTooltip:SetText(tostring(label))
             GameTooltip:AddLine("Status: " .. checked, 0.7, 0.7, 0.7)
             -- tooltipText is added in OnShow handler (above actions)
             GameTooltip:Show()
@@ -648,10 +664,29 @@ function Tooltip:ShowButtonTooltip(button)
         end
         
         -- Check if button has custom tooltip text (config controls, dropdowns, etc.)
-        if button.tooltipText or button.label then
+        if button.tooltipText or button.label or button.keyChar then
             GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-            local label = button.label or (button.GetText and button:GetText()) or buttonName or "Option"
-            GameTooltip:SetText(label)
+            local label = nil
+            -- For keyboard keys, use keyChar
+            if button.keyChar then
+                label = button.keyChar
+            -- If label is a FontString (has GetText), get the text from it
+            elseif button.label and type(button.label) == "table" and button.label.GetText then
+                label = button.label:GetText()
+            -- If label is already a string, use it directly
+            elseif button.label and type(button.label) == "string" then
+                label = button.label
+            end
+            if not label or label == "" then
+                label = button.GetText and button:GetText()
+            end
+            if not label or label == "" then
+                label = buttonName
+            end
+            if not label or label == "" then
+                label = "Option"
+            end
+            GameTooltip:SetText(tostring(label))
             -- tooltipText is added in OnShow handler (above actions)
             GameTooltip:Show()
             return
@@ -670,7 +705,7 @@ function Tooltip:ShowButtonTooltip(button)
             local buttonText = button.GetText and button:GetText()
             if buttonText and buttonText ~= "" then
                 GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-                GameTooltip:SetText(buttonText)
+                GameTooltip:SetText(tostring(buttonText))
                 GameTooltip:Show()
             end
         end

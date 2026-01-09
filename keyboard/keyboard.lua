@@ -12,12 +12,14 @@ local Keyboard = ConsoleExperience.keyboard
 -- State
 Keyboard.frame = nil
 Keyboard.shiftMode = false
+Keyboard.emoteMode = false  -- Toggle for emote mode (CTRL/RT)
 Keyboard.currentText = ""
 Keyboard.targetEditBox = nil
 Keyboard.fakeEditBox = nil
 Keyboard.currentKey = nil  -- Currently selected key for cursor navigation
 Keyboard.modifierFrame = nil  -- Frame to check modifiers
 Keyboard.lastShiftState = false  -- Track previous shift state for toggle
+Keyboard.lastCtrlState = false  -- Track previous ctrl state for emote toggle
 
 -- Constants
 local KEY_HEIGHT = 40
@@ -38,6 +40,19 @@ local KEYBOARD_LAYOUT = {
     {"z", "x", "c", "v", "b", "n", "m", ",", ".", "/", "\\", "'"},
 }
 
+-- Emote layout mapped to keyboard keys (4 rows x 12 columns = 48 emotes)
+-- Used when emote mode is toggled with CTRL/RT
+local EMOTE_LAYOUT = {
+    -- Row 1 (numbers row)
+    {"wave", "hello", "bye", "bow", "salute", "cheer", "applaud", "thank", "welcome", "hug", "kiss", "love"},
+    -- Row 2 (QWERTY row)
+    {"dance", "laugh", "joke", "roar", "giggle", "smile", "grin", "wink", "blush", "shy", "cry", "sob"},
+    -- Row 3 (ASDF row)
+    {"yes", "no", "nod", "shake", "shrug", "point", "beckon", "followme", "wait", "stop", "charge", "attack"},
+    -- Row 4 (ZXCV row)
+    {"sit", "stand", "sleep", "kneel", "lay", "flex", "bored", "yawn", "tired", "sigh", "angry", "rasp"},
+}
+
 -- ============================================================================
 -- Frame Creation
 -- ============================================================================
@@ -45,38 +60,23 @@ local KEYBOARD_LAYOUT = {
 function Keyboard:CreateFrame()
     if self.frame then return self.frame end
     
-    -- Get screen dimensions
-    -- UIParent dimensions are scaled based on UI scale setting, not physical resolution
-    -- Physical resolution can be different (e.g., 1920x1200 physical vs 1228x768 UI scaled)
+    -- Get screen dimensions - keyboard matches maximized chat width (full width - 20px padding)
     local screenWidth = UIParent:GetWidth()
     local screenHeight = UIParent:GetHeight()
-    local uiScale = UIParent:GetScale() or 1
     local keyboardHeight = screenHeight * 0.48  -- Use 48% of screen height
+    local keyboardWidth = screenWidth - 20  -- Same as maximized chat (10px padding each side)
     
-    -- Debug: show UI scaling info
+    -- Debug: show dimensions
     if CE_Debug then
-        -- Try to get physical resolution (may not be available in all WoW versions)
-        local physicalWidth = screenWidth / uiScale
-        local physicalHeight = screenHeight / uiScale
-        CE_Debug(string.format("UI Dimensions - UIParent: %d x %d | UIScale: %.2f | Physical (calculated): %.0f x %.0f",
-            screenWidth, screenHeight, uiScale, physicalWidth, physicalHeight))
+        CE_Debug(string.format("Keyboard Dimensions - ScreenWidth: %d | KeyboardWidth: %d | KeyboardHeight: %.1f",
+            screenWidth, keyboardWidth, keyboardHeight))
     end
     
-    -- Main keyboard frame (lower half)
+    -- Main keyboard frame - transparent container, same width as expanded chat (full screen - 20px)
     local frame = CreateFrame("Frame", "ConsoleExperienceKeyboard", UIParent)
-    -- Position from bottom, taking exactly 48% of screen height
-    -- Use explicit width to ensure full screen width
-    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
-    frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
-    frame:SetPoint("TOP", UIParent, "BOTTOM", 0, keyboardHeight)
-    
-    -- Debug: verify frame dimensions after creation
-    if CE_Debug then
-        local uiScale = UIParent:GetScale() or 1
-        local effectiveWidth = screenWidth / uiScale
-        CE_Debug(string.format("Frame Creation - Screen: %d x %d | UIScale: %.2f | Effective: %.0f x %.0f | Frame: %.0f x %.0f | KeyboardHeight: %.1f",
-            screenWidth, screenHeight, uiScale, effectiveWidth, screenHeight / uiScale, frame:GetWidth(), frame:GetHeight(), keyboardHeight))
-    end
+    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 10, 0)
+    frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 0)
+    frame:SetHeight(keyboardHeight)
     frame:SetFrameStrata("DIALOG")
     frame:SetFrameLevel(150)  -- Higher than chat frame to ensure keyboard is always visible
     frame:EnableMouse(true)
@@ -122,75 +122,18 @@ function Keyboard:CreateFrame()
     -- Don't enable keyboard input on the frame - it blocks cursor navigation
     -- ESC is handled via UISpecialFrames
     
-    -- Background - translucent like chat frame
-    local bg = frame:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints(frame)
-    bg:SetTexture("Interface\\Tooltips\\UI-Tooltip-Background")
-    bg:SetVertexColor(0, 0, 0, 0.7)  -- Same alpha as chat frame
-    frame.bg = bg
+    -- No background on main frame - it's transparent
     
-    -- Border
-    frame:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.7)
-    frame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    -- Calculate dimensions
+    local editBoxHeight = 30
+    local padding = 10
+    local keyboardBoxHeight = keyboardHeight - editBoxHeight - padding - 10  -- Leave space for edit box + padding
     
-    -- Calculate frame dimensions
-    local frameWidth = frame:GetWidth()
-    local frameHeight = frame:GetHeight()
-    
-    -- Calculate widths: keyboard takes ~70% of content width, emote panel takes ~30%
-    local contentWidth = frameWidth - 8  -- Minus insets
-    local keyboardWidth = math.floor(contentWidth * 0.70)
-    local emoteWidth = math.floor(contentWidth * 0.30)
-    local separatorWidth = 4  -- Separator between keyboard and emotes
-    local totalContentWidth = keyboardWidth + separatorWidth + emoteWidth
-    local sidePadding = math.floor((contentWidth - totalContentWidth) / 2)  -- Equal padding on both sides
-    
-    -- Create keyboard keys container (centered left side)
-    local keysContainer = CreateFrame("Frame", "CEKeyboardKeysContainer", frame)
-    keysContainer:SetPoint("TOP", frame, "TOP", 0, -4)
-    keysContainer:SetPoint("BOTTOM", frame, "BOTTOM", 0, 4)
-    keysContainer:SetPoint("LEFT", frame, "LEFT", 4 + sidePadding, 0)
-    if frameWidth > 0 and frameHeight > 0 then
-        keysContainer:SetWidth(keyboardWidth)
-        keysContainer:SetHeight(frameHeight - 8)
-    end
-    frame.keysContainer = keysContainer
-    
-    -- Create separator line between keyboard and emotes
-    local separator = frame:CreateTexture(nil, "ARTWORK")
-    separator:SetWidth(separatorWidth)
-    separator:SetHeight(frameHeight - 8)
-    separator:SetPoint("TOP", frame, "TOP", 0, -4)
-    separator:SetPoint("BOTTOM", frame, "BOTTOM", 0, 4)
-    separator:SetPoint("LEFT", keysContainer, "RIGHT", 0, 0)
-    separator:SetTexture("Interface\\Tooltips\\UI-Tooltip-Border")
-    separator:SetVertexColor(0.6, 0.6, 0.6, 0.8)
-    frame.separator = separator
-    
-    -- Create emote panel container (centered right side)
-    local emoteContainer = CreateFrame("Frame", "CEKeyboardEmoteContainer", frame)
-    emoteContainer:SetPoint("TOP", frame, "TOP", 0, -4)
-    emoteContainer:SetPoint("BOTTOM", frame, "BOTTOM", 0, 4)
-    emoteContainer:SetPoint("RIGHT", frame, "RIGHT", -4 - sidePadding, 0)
-    if frameWidth > 0 and frameHeight > 0 then
-        emoteContainer:SetWidth(emoteWidth)
-        emoteContainer:SetHeight(frameHeight - 8)
-    end
-    frame.emoteContainer = emoteContainer
-    
-    -- Create fake edit box at bottom of keyboard frame (spans full width)
+    -- Create fake edit box at bottom of keyboard frame (full width using anchors)
     local fakeEditBox = CreateFrame("EditBox", "CEKeyboardFakeEditBox", frame)
-    fakeEditBox:SetWidth(frameWidth - 20)
-    fakeEditBox:SetHeight(30)
-    fakeEditBox:SetPoint("BOTTOM", frame, "BOTTOM", 0, 10)
+    fakeEditBox:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 5)
+    fakeEditBox:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 5)
+    fakeEditBox:SetHeight(editBoxHeight)
     fakeEditBox:SetFontObject("GameFontNormal")
     fakeEditBox:SetAutoFocus(false)
     fakeEditBox:SetText("")
@@ -229,11 +172,69 @@ function Keyboard:CreateFrame()
     frame.fakeEditBox = fakeEditBox
     self.fakeEditBox = fakeEditBox
     
+    -- Create keyboard box above the edit box (full width using anchors, same style)
+    local keyboardBox = CreateFrame("Frame", "CEKeyboardBox", frame)
+    keyboardBox:SetPoint("BOTTOMLEFT", fakeEditBox, "TOPLEFT", 0, padding)
+    keyboardBox:SetPoint("BOTTOMRIGHT", fakeEditBox, "TOPRIGHT", 0, padding)
+    keyboardBox:SetHeight(keyboardBoxHeight)
+    frame.keyboardBox = keyboardBox
+    
+    -- Background for keyboard box (same style as edit box)
+    local keyboardBoxBg = keyboardBox:CreateTexture(nil, "BACKGROUND")
+    keyboardBoxBg:SetAllPoints(keyboardBox)
+    keyboardBoxBg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    keyboardBoxBg:SetVertexColor(0, 0, 0, 0.8)
+    keyboardBox.bg = keyboardBoxBg
+    
+    -- Border for keyboard box (same style as edit box)
+    local keyboardBoxBorder = CreateFrame("Frame", nil, keyboardBox)
+    keyboardBoxBorder:SetPoint("TOPLEFT", keyboardBox, "TOPLEFT", -2, 2)
+    keyboardBoxBorder:SetPoint("BOTTOMRIGHT", keyboardBox, "BOTTOMRIGHT", 2, -2)
+    keyboardBoxBorder:SetBackdrop({
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 8,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
+    })
+    keyboardBoxBorder:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+    keyboardBox.border = keyboardBoxBorder
+    
+    -- Close button at top left corner of keyboard box
+    local closeButton = CreateFrame("Button", "CEKeyboardCloseButton", keyboardBox, "UIPanelCloseButton")
+    closeButton:SetPoint("TOPLEFT", keyboardBox, "TOPLEFT", -2, 2)
+    closeButton:SetWidth(32)
+    closeButton:SetHeight(32)
+    closeButton.label = "Close Keyboard"
+    closeButton.tooltipText = "Close the virtual keyboard"
+    closeButton:SetScript("OnClick", function()
+        Keyboard:Hide()
+    end)
+    -- Make it work with the cursor system
+    closeButton.Click = function(self, mouseButton)
+        if mouseButton == "LeftButton" or not mouseButton then
+            Keyboard:Hide()
+        end
+    end
+    frame.closeButton = closeButton
+    
+    -- Keys container inside the keyboard box (with padding)
+    local keysContainer = CreateFrame("Frame", "CEKeyboardKeysContainer", keyboardBox)
+    keysContainer:SetPoint("TOPLEFT", keyboardBox, "TOPLEFT", 8, -8)
+    keysContainer:SetPoint("BOTTOMRIGHT", keyboardBox, "BOTTOMRIGHT", -8, 8)
+    frame.keysContainer = keysContainer
+    
+    -- Emote container (hidden for now)
+    local emoteContainer = CreateFrame("Frame", "CEKeyboardEmoteContainer", frame)
+    emoteContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    emoteContainer:SetWidth(1)
+    emoteContainer:SetHeight(1)
+    emoteContainer:Hide()
+    frame.emoteContainer = emoteContainer
+    
     -- Create keyboard keys
     self:CreateKeys(keysContainer)
     
-    -- Create emote panel
-    self:CreateEmotePanel(emoteContainer)
+    -- Emote panel disabled for now
+    -- self:CreateEmotePanel(emoteContainer)
     
     self.frame = frame
     
@@ -247,49 +248,34 @@ end
 function Keyboard:CreateKeys(parent)
     self.keys = {}
     
-    -- Get width from parent container (keysContainer) - use actual GetWidth() as source of truth
-    local frame = parent:GetParent()
-    local frameWidth = frame and frame:GetWidth() or 0
-    local frameHeight = frame and frame:GetHeight() or 0
+    -- Get actual container dimensions using GetRight/GetLeft (works for anchor-based frames)
+    local containerLeft = parent:GetLeft() or 0
+    local containerRight = parent:GetRight() or 0
+    local containerTop = parent:GetTop() or 0
+    local containerBottom = parent:GetBottom() or 0
     
-    -- Use parent's actual width/height as the source of truth (it's already positioned correctly)
-    -- Get actual dimensions directly from parent - this is the most accurate
-    local containerWidth = parent:GetWidth() or 0
-    local containerHeight = parent:GetHeight() or 0
+    local containerWidth = containerRight - containerLeft
+    local containerHeight = containerTop - containerBottom
     
-    -- Fallback if parent width not available yet (shouldn't happen, but just in case)
+    -- Fallback to screen-based calculation if GetRight/GetLeft fails
     if containerWidth <= 0 then
-        if frameWidth > 0 then
-            containerWidth = frameWidth - 8  -- Account for 4px insets on each side
-        else
-            containerWidth = UIParent:GetWidth() - 8
-        end
+        local screenWidth = UIParent:GetWidth()
+        containerWidth = screenWidth - 20 - 16  -- screen - frame margins - container padding
     end
     if containerHeight <= 0 then
-        if frameHeight > 0 then
-            containerHeight = frameHeight - 8  -- Account for 4px insets on each side
-        else
-            containerHeight = UIParent:GetHeight() * 0.48 - 8
-        end
-    end
-    
-    -- Get actual parent dimensions again to ensure accuracy (use these for calculations)
-    local parentWidthActual = parent:GetWidth()
-    local parentHeightActual = parent:GetHeight()
-    
-    -- Use actual parent dimensions (these are the source of truth) - ensure integers
-    if parentWidthActual and parentWidthActual > 0 then
-        containerWidth = math.floor(parentWidthActual + 0.5)  -- Round to nearest integer
-    end
-    if parentHeightActual and parentHeightActual > 0 then
-        containerHeight = math.floor(parentHeightActual + 0.5)  -- Round to nearest integer
+        local screenHeight = UIParent:GetHeight()
+        local keyboardHeight = screenHeight * 0.48
+        local editBoxHeight = 30
+        local padding = 10
+        local keyboardBoxHeight = keyboardHeight - editBoxHeight - padding - 10
+        containerHeight = keyboardBoxHeight - 16
     end
     
     -- Debug to console using CE_Debug
     if CE_Debug then
         local screenWidth = UIParent:GetWidth()
-        CE_Debug(string.format("Keyboard Dimensions - Screen: %d | Frame: %.0f x %.0f | Container: %.0f x %.0f | Parent Actual: %.0f x %.0f",
-            screenWidth, frameWidth, frameHeight, containerWidth, containerHeight, parentWidthActual or 0, parentHeightActual or 0))
+        CE_Debug(string.format("Keyboard Dimensions - Screen: %d | Container (L:%.0f R:%.0f): %.0f x %.0f",
+            screenWidth, containerLeft, containerRight, containerWidth, containerHeight))
     end
     
     -- Calculate available height for keys (leave space for special keys row at bottom)
@@ -367,20 +353,22 @@ function Keyboard:CreateKeys(parent)
     local specialKeysY = -30 - (table.getn(KEYBOARD_LAYOUT)) * (adjustedKeyHeight + adjustedRowSpacing) - (adjustedKeyHeight / 2)
     local specialKeyHeight = adjustedKeyHeight
     
-    -- Special keys: SHIFT, SPACE, DEL, ENTER - all same width as regular keys
-    local specialKeys = {"SHIFT", "SPACE", "DEL", "ENTER"}
+    -- Special keys: EMOTES, SHIFT, SPACE, DEL, ENTER - all same width as regular keys
+    -- EMOTES is first so it's on the left side
+    local specialKeys = {"EMOTES", "SHIFT", "SPACE", "DEL", "ENTER"}
     local specialKeyWidth = keyWidth  -- Same width as regular keys
     
-    -- Command buttons: Guild, Party, Whisper, and Channel buttons (1-5)
+    -- Command buttons: Guild, Party, Whisper, Channel buttons (1-5)
+    -- CH4 and CH5 are half width to fit all buttons in the row
     local commandButtons = {
-        {label = "GUILD", command = "/g ", color = {0.2, 0.8, 0.2, 0.9}},  -- Green
-        {label = "PARTY", command = "/p ", color = {0.2, 0.6, 0.9, 0.9}},   -- Blue
-        {label = "WHISPER", command = "/w ", color = {0.9, 0.6, 0.2, 0.9}}, -- Orange
-        {label = "CH1", command = "/1 ", color = {0.7, 0.7, 0.7, 0.9}},     -- Gray
-        {label = "CH2", command = "/2 ", color = {0.7, 0.7, 0.7, 0.9}},     -- Gray
-        {label = "CH3", command = "/3 ", color = {0.7, 0.7, 0.7, 0.9}},      -- Gray
-        {label = "CH4", command = "/4 ", color = {0.7, 0.7, 0.7, 0.9}},     -- Gray
-        {label = "CH5", command = "/5 ", color = {0.7, 0.7, 0.7, 0.9}},     -- Gray
+        {label = "GUILD", command = "/g ", color = {0.2, 0.8, 0.2, 0.9}, width = 1},      -- Green
+        {label = "PARTY", command = "/p ", color = {0.2, 0.6, 0.9, 0.9}, width = 1},      -- Blue
+        {label = "WHISPER", command = "/w ", color = {0.9, 0.6, 0.2, 0.9}, width = 1},    -- Orange
+        {label = "CH1", command = "/1 ", color = {0.7, 0.7, 0.7, 0.9}, width = 1},        -- Gray
+        {label = "CH2", command = "/2 ", color = {0.7, 0.7, 0.7, 0.9}, width = 1},        -- Gray
+        {label = "CH3", command = "/3 ", color = {0.7, 0.7, 0.7, 0.9}, width = 1},        -- Gray
+        {label = "CH4", command = "/4 ", color = {0.5, 0.5, 0.5, 0.9}, width = 0.5},      -- Gray (half width)
+        {label = "CH5", command = "/5 ", color = {0.5, 0.5, 0.5, 0.9}, width = 0.5},      -- Gray (half width)
     }
     
     -- Position special keys from left to right at the beginning of the row
@@ -388,12 +376,37 @@ function Keyboard:CreateKeys(parent)
         local x = firstKeyCenterX + (keyIndex - 1) * (specialKeyWidth + KEY_SPACING)
         local y = specialKeysY
         
-        if keyLabel == "SHIFT" then
+        if keyLabel == "EMOTES" then
+            local emoteKey = self:CreateSpecialKey(parent, "EMOTES", x, y, specialKeyWidth, specialKeyHeight)
+            emoteKey.action = function() Keyboard:ToggleEmotes() end
+            emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)  -- Purple for emotes
+            emoteKey.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
+            emoteKey.keyCol = keyIndex
+            self.emoteKey = emoteKey
+            table.insert(self.keys, emoteKey)  -- Add to keys table for cleanup
+            
+            -- Add RT texture to emotes key (top right corner)
+            local rtTexture = emoteKey:CreateTexture(nil, "OVERLAY")
+            rtTexture:SetWidth(24)
+            rtTexture:SetHeight(24)
+            rtTexture:SetPoint("TOPRIGHT", emoteKey, "TOPRIGHT", -2, -2)
+            -- Get controller type for icon path
+            local controllerType = "xbox"  -- Default
+            if ConsoleExperience.config and ConsoleExperience.config.Get then
+                controllerType = ConsoleExperience.config:Get("controllerType") or "xbox"
+            elseif ConsoleExperienceDB and ConsoleExperienceDB.config and ConsoleExperienceDB.config.controllerType then
+                controllerType = ConsoleExperienceDB.config.controllerType
+            end
+            rtTexture:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\controllers\\" .. controllerType .. "\\rt")
+            rtTexture:SetAlpha(0.8)
+            emoteKey.rtTexture = rtTexture
+        elseif keyLabel == "SHIFT" then
             local shiftKey = self:CreateSpecialKey(parent, "SHIFT", x, y, specialKeyWidth, specialKeyHeight)
             shiftKey.action = function() Keyboard:ToggleShift() end
             shiftKey.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
             shiftKey.keyCol = keyIndex
             self.shiftKey = shiftKey
+            table.insert(self.keys, shiftKey)  -- Add to keys table for cleanup
             
             -- Add LT texture to shift key (top right corner)
             local ltTexture = shiftKey:CreateTexture(nil, "OVERLAY")
@@ -415,11 +428,13 @@ function Keyboard:CreateKeys(parent)
             spaceKey.action = function() Keyboard:AddChar(" ") end
             spaceKey.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
             spaceKey.keyCol = keyIndex
+            table.insert(self.keys, spaceKey)  -- Add to keys table for cleanup
         elseif keyLabel == "DEL" then
             local deleteKey = self:CreateSpecialKey(parent, "DEL", x, y, specialKeyWidth, specialKeyHeight)
             deleteKey.action = function() Keyboard:DeleteChar() end
             deleteKey.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
             deleteKey.keyCol = keyIndex
+            table.insert(self.keys, deleteKey)  -- Add to keys table for cleanup
         elseif keyLabel == "ENTER" then
             local enterKey = self:CreateSpecialKey(parent, "ENTER", x, y, specialKeyWidth, specialKeyHeight)
             enterKey.action = function() Keyboard:Confirm() end
@@ -427,6 +442,7 @@ function Keyboard:CreateKeys(parent)
             enterKey.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
             enterKey.keyCol = keyIndex
             self.enterKey = enterKey
+            table.insert(self.keys, enterKey)  -- Add to keys table for cleanup
             
             -- Add X texture to enter key (top right corner) - X button (key "2") triggers Confirm
             local xTexture = enterKey:CreateTexture(nil, "OVERLAY")
@@ -448,18 +464,30 @@ function Keyboard:CreateKeys(parent)
     
     -- Add command buttons after the special keys
     local commandStartIndex = table.getn(specialKeys) + 1
+    local currentX = firstKeyCenterX + (commandStartIndex - 1) * (specialKeyWidth + KEY_SPACING)
+    
     for cmdIndex, cmdInfo in ipairs(commandButtons) do
-        local x = firstKeyCenterX + (commandStartIndex + cmdIndex - 2) * (specialKeyWidth + KEY_SPACING)
         local y = specialKeysY
         
         -- Capture cmdInfo in local variable to avoid closure issues
         local cmdLabel = cmdInfo.label
         local cmdCommand = cmdInfo.command
         local cmdColor = cmdInfo.color
+        local cmdWidth = cmdInfo.width or 1
         
-        local cmdButton = self:CreateSpecialKey(parent, cmdLabel, x, y, specialKeyWidth, specialKeyHeight)
+        -- Calculate button width based on width multiplier
+        local buttonWidth = (specialKeyWidth * cmdWidth) + (cmdWidth > 1 and (cmdWidth - 1) * KEY_SPACING or 0)
+        if cmdWidth < 1 then
+            buttonWidth = specialKeyWidth * cmdWidth
+        end
+        
+        -- Position at current X (center of button)
+        local x = currentX + (buttonWidth / 2) - (specialKeyWidth / 2)
+        
+        local cmdButton = self:CreateSpecialKey(parent, cmdLabel, x, y, buttonWidth, specialKeyHeight)
+        
+        -- Command button action - insert command prefix into current text
         cmdButton.action = function()
-            -- Insert the command prefix into the current text
             -- Ensure currentText is initialized (not nil)
             if not Keyboard.currentText then
                 Keyboard.currentText = ""
@@ -469,6 +497,7 @@ function Keyboard:CreateKeys(parent)
                 Keyboard.fakeEditBox:SetText(Keyboard.currentText)
             end
         end
+        
         cmdButton:SetBackdropColor(unpack(cmdColor))
         cmdButton.keyRow = table.getn(KEYBOARD_LAYOUT) + 1  -- Special keys row
         cmdButton.keyCol = commandStartIndex + cmdIndex - 1
@@ -478,6 +507,9 @@ function Keyboard:CreateKeys(parent)
             self.keys = {}
         end
         table.insert(self.keys, cmdButton)
+        
+        -- Move X position for next button
+        currentX = currentX + buttonWidth + KEY_SPACING
     end
 end
 
@@ -525,12 +557,34 @@ function Keyboard:CreateKey(parent, char, x, y, width, height)
     
     -- Click handler - works with both mouse and cursor system
     button:SetScript("OnClick", function()
+        -- Check if in emote mode and this key has an emote mapped
+        if Keyboard.emoteMode and this.keyRow and this.keyCol then
+            local row = this.keyRow
+            local col = this.keyCol
+            if row >= 1 and row <= 4 and EMOTE_LAYOUT[row] and EMOTE_LAYOUT[row][col] then
+                local emoteCmd = EMOTE_LAYOUT[row][col]
+                Keyboard:ExecuteEmote(emoteCmd)
+                return
+            end
+        end
+        -- Normal mode - add character
         Keyboard:AddChar(this.keyChar)
     end)
     
     -- Make button clickable via cursor system
     button.Click = function(self, mouseButton)
         if mouseButton == "LeftButton" or not mouseButton then
+            -- Check if in emote mode and this key has an emote mapped
+            if Keyboard.emoteMode and self.keyRow and self.keyCol then
+                local row = self.keyRow
+                local col = self.keyCol
+                if row >= 1 and row <= 4 and EMOTE_LAYOUT[row] and EMOTE_LAYOUT[row][col] then
+                    local emoteCmd = EMOTE_LAYOUT[row][col]
+                    Keyboard:ExecuteEmote(emoteCmd)
+                    return
+                end
+            end
+            -- Normal mode - add character
             Keyboard:AddChar(self.keyChar)
         end
     end
@@ -845,6 +899,13 @@ end
 
 function Keyboard:ToggleShift()
     self.shiftMode = not self.shiftMode
+    -- Turn off emote mode when shift is toggled
+    if self.shiftMode and self.emoteMode then
+        self.emoteMode = false
+        if self.emoteKey then
+            self.emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)  -- Normal state
+        end
+    end
     self:UpdateKeyLabels()
     
     -- Update shift key visual feedback
@@ -853,6 +914,27 @@ function Keyboard:ToggleShift()
             self.shiftKey:SetBackdropColor(0.5, 0.5, 0.5, 0.9)  -- Highlighted when active
         else
             self.shiftKey:SetBackdropColor(0.3, 0.3, 0.3, 0.9)  -- Normal state
+        end
+    end
+end
+
+function Keyboard:ToggleEmotes()
+    self.emoteMode = not self.emoteMode
+    -- Turn off shift mode when emotes is toggled
+    if self.emoteMode and self.shiftMode then
+        self.shiftMode = false
+        if self.shiftKey then
+            self.shiftKey:SetBackdropColor(0.3, 0.3, 0.3, 0.9)  -- Normal state
+        end
+    end
+    self:UpdateKeyLabels()
+    
+    -- Update emote key visual feedback
+    if self.emoteKey then
+        if self.emoteMode then
+            self.emoteKey:SetBackdropColor(0.8, 0.4, 0.8, 0.9)  -- Highlighted when active
+        else
+            self.emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)  -- Normal state
         end
     end
 end
@@ -868,6 +950,13 @@ function Keyboard:CheckModifiers()
     
     -- Toggle shift mode when shift goes from not pressed to pressed
     if shiftPressed and not self.lastShiftState then
+        -- Turn off emote mode when shift is toggled
+        if self.emoteMode then
+            self.emoteMode = false
+            if self.emoteKey then
+                self.emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)
+            end
+        end
         -- Shift was just pressed - toggle shift mode
         self.shiftMode = not self.shiftMode
         self:UpdateKeyLabels()
@@ -884,6 +973,35 @@ function Keyboard:CheckModifiers()
     
     -- Update last shift state
     self.lastShiftState = shiftPressed
+    
+    -- Check for control modifier (RT) - toggle on press, not hold
+    local ctrlPressed = IsControlKeyDown()
+    
+    -- Toggle emote mode when ctrl goes from not pressed to pressed
+    if ctrlPressed and not self.lastCtrlState then
+        -- Turn off shift mode when emotes is toggled
+        if self.shiftMode then
+            self.shiftMode = false
+            if self.shiftKey then
+                self.shiftKey:SetBackdropColor(0.3, 0.3, 0.3, 0.9)
+            end
+        end
+        -- Ctrl was just pressed - toggle emote mode
+        self.emoteMode = not self.emoteMode
+        self:UpdateKeyLabels()
+        
+        -- Update emote key visual state
+        if self.emoteKey then
+            if self.emoteMode then
+                self.emoteKey:SetBackdropColor(0.8, 0.4, 0.8, 0.9)
+            else
+                self.emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)
+            end
+        end
+    end
+    
+    -- Update last ctrl state
+    self.lastCtrlState = ctrlPressed
 end
 
 -- Initialize cursor navigation for keyboard keys
@@ -937,50 +1055,70 @@ function Keyboard:UpdateKeyLabels()
     for _, key in ipairs(self.keys) do
         if key.label and key.keyChar then
             local char = key.keyChar
-            -- Check if lowercase letter (Lua 5.0 compatible)
-            if self.shiftMode and char >= "a" and char <= "z" then
-                char = string.upper(char)
-            -- Handle shift combinations for numbers and symbols
-            elseif self.shiftMode and char == "1" then
-                char = "!"
-            elseif self.shiftMode and char == "2" then
-                char = "@"
-            elseif self.shiftMode and char == "3" then
-                char = "#"
-            elseif self.shiftMode and char == "4" then
-                char = "$"
-            elseif self.shiftMode and char == "5" then
-                char = "%"
-            elseif self.shiftMode and char == "6" then
-                char = "^"
-            elseif self.shiftMode and char == "7" then
-                char = "&"
-            elseif self.shiftMode and char == "8" then
-                char = "*"
-            elseif self.shiftMode and char == "9" then
-                char = "("
-            elseif self.shiftMode and char == "0" then
-                char = ")"
-            elseif self.shiftMode and char == "-" then
-                char = "_"
-            elseif self.shiftMode and char == "=" then
-                char = "+"
-            elseif self.shiftMode and char == "[" then
-                char = "{"
-            elseif self.shiftMode and char == "]" then
-                char = "}"
-            elseif self.shiftMode and char == ";" then
-                char = ":"
-            elseif self.shiftMode and char == "'" then
-                char = '"'
-            elseif self.shiftMode and char == "," then
-                char = "<"
-            elseif self.shiftMode and char == "." then
-                char = ">"
-            elseif self.shiftMode and char == "/" then
-                char = "?"
+            local row = key.keyRow
+            local col = key.keyCol
+            
+            -- Check for emote mode first
+            if self.emoteMode and row and col and row >= 1 and row <= 4 and EMOTE_LAYOUT[row] and EMOTE_LAYOUT[row][col] then
+                local emoteCmd = EMOTE_LAYOUT[row][col]
+                -- Capitalize first letter for display
+                local displayText = string.upper(string.sub(emoteCmd, 1, 1)) .. string.sub(emoteCmd, 2)
+                -- Truncate if too long
+                if string.len(displayText) > 6 then
+                    displayText = string.sub(displayText, 1, 5) .. "."
+                end
+                key.label:SetText(displayText)
+                -- Change key color to indicate emote mode
+                key:SetBackdropColor(0.4, 0.2, 0.4, 0.9)  -- Purple tint
+            else
+                -- Normal mode or shift mode
+                -- Check if lowercase letter (Lua 5.0 compatible)
+                if self.shiftMode and char >= "a" and char <= "z" then
+                    char = string.upper(char)
+                -- Handle shift combinations for numbers and symbols
+                elseif self.shiftMode and char == "1" then
+                    char = "!"
+                elseif self.shiftMode and char == "2" then
+                    char = "@"
+                elseif self.shiftMode and char == "3" then
+                    char = "#"
+                elseif self.shiftMode and char == "4" then
+                    char = "$"
+                elseif self.shiftMode and char == "5" then
+                    char = "%"
+                elseif self.shiftMode and char == "6" then
+                    char = "^"
+                elseif self.shiftMode and char == "7" then
+                    char = "&"
+                elseif self.shiftMode and char == "8" then
+                    char = "*"
+                elseif self.shiftMode and char == "9" then
+                    char = "("
+                elseif self.shiftMode and char == "0" then
+                    char = ")"
+                elseif self.shiftMode and char == "-" then
+                    char = "_"
+                elseif self.shiftMode and char == "=" then
+                    char = "+"
+                elseif self.shiftMode and char == "[" then
+                    char = "{"
+                elseif self.shiftMode and char == "]" then
+                    char = "}"
+                elseif self.shiftMode and char == ";" then
+                    char = ":"
+                elseif self.shiftMode and char == "'" then
+                    char = '"'
+                elseif self.shiftMode and char == "," then
+                    char = "<"
+                elseif self.shiftMode and char == "." then
+                    char = ">"
+                elseif self.shiftMode and char == "/" then
+                    char = "?"
+                end
+                key.label:SetText(char)
+                -- Reset key color to normal
+                key:SetBackdropColor(0.2, 0.2, 0.2, 0.9)
             end
-            key.label:SetText(char)
         end
     end
 end
@@ -1254,24 +1392,43 @@ function Keyboard:Show(editBox)
     end
     
     if self.frame then
-        -- Update size based on current screen dimensions
+        -- Match expanded chat frame width: full screen width minus 20px (10px padding each side)
         local screenWidth = UIParent:GetWidth()
         local screenHeight = UIParent:GetHeight()
         local keyboardHeight = screenHeight * 0.48
+        local contentWidth = screenWidth - 20  -- Same as expanded chat: 10px padding on each side
         
+        -- Calculate dimensions
+        local editBoxHeight = 30
+        local padding = 10
+        local keyboardBoxHeight = keyboardHeight - editBoxHeight - padding - 10  -- Space for edit box + padding
+        
+        -- Update main frame (transparent container, same positioning as expanded chat)
         self.frame:ClearAllPoints()
-        -- Position from bottom, taking exactly 48% of screen height
-        -- Use explicit width/height to ensure full width
-        self.frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
-        self.frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", 0, 0)
-        self.frame:SetPoint("TOP", UIParent, "BOTTOM", 0, keyboardHeight)
+        self.frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 10, 0)
+        self.frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 0)
+        self.frame:SetHeight(keyboardHeight)
+        
+        -- Update fake edit box width (fill the frame width)
+        if self.fakeEditBox then
+            self.fakeEditBox:ClearAllPoints()
+            self.fakeEditBox:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", 0, 5)
+            self.fakeEditBox:SetPoint("BOTTOMRIGHT", self.frame, "BOTTOMRIGHT", 0, 5)
+            self.fakeEditBox:SetHeight(editBoxHeight)
+        end
+        
+        -- Update keyboard box dimensions (fill the frame width, above edit box)
+        if self.frame.keyboardBox then
+            self.frame.keyboardBox:ClearAllPoints()
+            self.frame.keyboardBox:SetPoint("BOTTOMLEFT", self.fakeEditBox, "TOPLEFT", 0, padding)
+            self.frame.keyboardBox:SetPoint("BOTTOMRIGHT", self.fakeEditBox, "TOPRIGHT", 0, padding)
+            self.frame.keyboardBox:SetHeight(keyboardBoxHeight)
+        end
         
         -- Debug: verify frame dimensions
         if CE_Debug then
-            local uiScale = UIParent:GetScale() or 1
-            local effectiveWidth = screenWidth / uiScale
-            CE_Debug(string.format("Frame Positioning - Screen: %d x %d | UIScale: %.2f | Effective: %.0f x %.0f | Frame After SetPoint: %.0f x %.0f | KeyboardHeight: %.1f",
-                screenWidth, screenHeight, uiScale, effectiveWidth, screenHeight / uiScale, self.frame:GetWidth(), self.frame:GetHeight(), keyboardHeight))
+            CE_Debug(string.format("Frame Positioning - ScreenWidth: %d | ContentWidth: %d | KeyboardHeight: %.1f | BoxHeight: %.1f",
+                screenWidth, contentWidth, keyboardHeight, keyboardBoxHeight))
         end
         
         -- Show frame first to ensure it's laid out and has correct dimensions
@@ -1280,58 +1437,7 @@ function Keyboard:Show(editBox)
         -- Ensure keyboard input is enabled so ESC key is captured
         self.frame:EnableKeyboard(true)
         
-        -- Ensure keysContainer is properly positioned (accounting for centered split layout)
-        if self.frame.keysContainer then
-            local frameW = self.frame:GetWidth()
-            local frameH = self.frame:GetHeight()
-            
-            -- Calculate split: keyboard 70%, emotes 30%, centered
-            local contentWidth = frameW - 8  -- Minus insets
-            local keyboardWidth = math.floor(contentWidth * 0.70)
-            local emoteWidth = math.floor(contentWidth * 0.30)
-            local separatorWidth = 4
-            local totalContentWidth = keyboardWidth + separatorWidth + emoteWidth
-            local sidePadding = math.floor((contentWidth - totalContentWidth) / 2)  -- Equal padding on both sides
-            
-            self.frame.keysContainer:ClearAllPoints()
-            self.frame.keysContainer:SetPoint("TOP", self.frame, "TOP", 0, -4)
-            self.frame.keysContainer:SetPoint("BOTTOM", self.frame, "BOTTOM", 0, 4)
-            self.frame.keysContainer:SetPoint("LEFT", self.frame, "LEFT", 4 + sidePadding, 0)
-            if frameW > 0 and frameH > 0 then
-                self.frame.keysContainer:SetWidth(keyboardWidth)
-                self.frame.keysContainer:SetHeight(frameH - 8)
-            end
-            
-            -- Update separator position
-            if self.frame.separator then
-                self.frame.separator:ClearAllPoints()
-                self.frame.separator:SetPoint("TOP", self.frame, "TOP", 0, -4)
-                self.frame.separator:SetPoint("BOTTOM", self.frame, "BOTTOM", 0, 4)
-                self.frame.separator:SetPoint("LEFT", self.frame.keysContainer, "RIGHT", 0, 0)
-            end
-            
-            -- Update emote container
-            if self.frame.emoteContainer then
-                self.frame.emoteContainer:ClearAllPoints()
-                self.frame.emoteContainer:SetPoint("TOP", self.frame, "TOP", 0, -4)
-                self.frame.emoteContainer:SetPoint("BOTTOM", self.frame, "BOTTOM", 0, 4)
-                self.frame.emoteContainer:SetPoint("RIGHT", self.frame, "RIGHT", -4 - sidePadding, 0)
-                if frameW > 0 and frameH > 0 then
-                    self.frame.emoteContainer:SetWidth(emoteWidth)
-                    self.frame.emoteContainer:SetHeight(frameH - 8)
-                end
-            end
-            
-            -- Debug: verify container fills frame correctly
-            if CE_Debug then
-                local containerW = self.frame.keysContainer:GetWidth()
-                local containerH = self.frame.keysContainer:GetHeight()
-                local expectedW = frameW - 8  -- 4px on each side
-                local expectedH = frameH - 8
-                CE_Debug(string.format("Container Check - Frame: %.0f x %.0f | Container: %.0f x %.0f | Expected: %.0f x %.0f | Diff: %.0f x %.0f",
-                    frameW, frameH, containerW, containerH, expectedW, expectedH, containerW - expectedW, containerH - expectedH))
-            end
-        end
+        -- Keys container is already positioned relative to keyboard box, no need to reposition
         
         -- Small delay to ensure frame is fully laid out before creating keys
         local delayFrame = CreateFrame("Frame")
@@ -1355,6 +1461,8 @@ function Keyboard:Show(editBox)
                 end
                 
                 -- Recreate emote panel with current frame dimensions
+                -- Emote panel disabled for now
+                --[[
                 if self.emoteButtons and self.frame.emoteContainer then
                     -- Clear existing emote buttons
                     for _, button in ipairs(self.emoteButtons) do
@@ -1367,6 +1475,7 @@ function Keyboard:Show(editBox)
                     -- Recreate emote panel
                     self:CreateEmotePanel(self.frame.emoteContainer)
                 end
+                ]]
                 
                 -- Hook keyboard frame into cursor system
                 local Hooks = ConsoleExperience.hooks
@@ -1455,12 +1564,17 @@ function Keyboard:Hide()
     self.currentText = ""
     self.targetEditBox = nil
     self.shiftMode = false
+    self.emoteMode = false
     
     -- Clear hiding flag
     self._hiding = nil
     self.lastShiftState = false  -- Reset shift state tracking
+    self.lastCtrlState = false  -- Reset ctrl state tracking
     if self.shiftKey then
         self.shiftKey:SetBackdropColor(0.3, 0.3, 0.3, 0.9)
+    end
+    if self.emoteKey then
+        self.emoteKey:SetBackdropColor(0.6, 0.3, 0.6, 0.9)
     end
     if self.keys then
         self:UpdateKeyLabels()
