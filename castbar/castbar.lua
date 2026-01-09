@@ -225,7 +225,7 @@ function CastBar:SetupEvents()
             this.channeling = false
             this.spellName = arg1 or "Casting"
             this.startTime = GetTime()
-            this.maxValue = this.startTime + (arg2 / 1000)
+            this.maxValue = this.startTime + (tonumber(arg2) / 1000)
             
             -- Use absolute time values like Blizzard does
             this.bar:SetMinMaxValues(this.startTime, this.maxValue)
@@ -251,8 +251,8 @@ function CastBar:SetupEvents()
         elseif event == "SPELLCAST_DELAYED" then
             -- arg1 = delay amount (ms)
             if this.casting then
-                this.startTime = this.startTime + (arg1 / 1000)
-                this.maxValue = this.maxValue + (arg1 / 1000)
+                this.startTime = this.startTime + (tonumber(arg1) / 1000)
+                this.maxValue = this.maxValue + (tonumber(arg1) / 1000)
                 this.bar:SetMinMaxValues(this.startTime, this.maxValue)
             end
             
@@ -262,7 +262,7 @@ function CastBar:SetupEvents()
             this.channeling = true
             this.spellName = arg1 or "Channeling"
             this.startTime = GetTime()
-            this.endTime = this.startTime + (arg2 / 1000)
+            this.endTime = this.startTime + (tonumber(arg2) / 1000)
             
             -- Use absolute time values like Blizzard does
             this.bar:SetMinMaxValues(this.startTime, this.endTime)
@@ -283,7 +283,7 @@ function CastBar:SetupEvents()
             -- arg1 = new channel time remaining (ms)
             if this.channeling then
                 local origDuration = this.endTime - this.startTime
-                this.endTime = GetTime() + (arg1 / 1000)
+                this.endTime = GetTime() + (tonumber(arg1) / 1000)
                 this.startTime = this.endTime - origDuration
                 this.bar:SetMinMaxValues(this.startTime, this.endTime)
             end
