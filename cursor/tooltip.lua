@@ -393,6 +393,10 @@ function Tooltip:GetActions(buttonName, elementType)
     if buttonName then
         for _, config in ipairs(self.frameActions) do
             if string.find(buttonName, config.pattern) then
+                -- Special handling for container items - dynamic B button text
+                if config.pattern == "ContainerFrame%d+Item%d+" then
+                    return self:GetContainerItemActions()
+                end
                 return config.actions
             end
         end
@@ -404,6 +408,35 @@ function Tooltip:GetActions(buttonName, elementType)
     end
     
     return {{icon = "a", prompt = "Click"}}
+end
+
+-- Get dynamic actions for container (bag) items based on open frames
+function Tooltip:GetContainerItemActions()
+    local bAction = "Use"  -- Default action
+    
+    -- Check if merchant frame is visible
+    if MerchantFrame and MerchantFrame:IsVisible() then
+        bAction = "Sell"
+    -- Check if auction frame is visible
+    elseif AuctionFrame and AuctionFrame:IsVisible() then
+        bAction = "Auction"
+    -- Check if trade frame is visible
+    elseif TradeFrame and TradeFrame:IsVisible() then
+        bAction = "Trade"
+    -- Check if mail frame is visible (send mail)
+    elseif SendMailFrame and SendMailFrame:IsVisible() then
+        bAction = "Attach"
+    -- Check if bank frame is visible
+    elseif BankFrame and BankFrame:IsVisible() then
+        bAction = "Deposit"
+    end
+    
+    return {
+        {icon = "a", prompt = "Pickup"},
+        {icon = "x", prompt = "Bind"},
+        {icon = "b", prompt = bAction},
+        {icon = "y", prompt = "Drop"}
+    }
 end
 
 function Tooltip:GetBindings(buttonName)
