@@ -434,8 +434,9 @@ function ActionBars:UpdateButton(button)
         button.isSpecialBinding = nil
         
         -- Reset range state when updating button
+        -- Use -1 to force UpdateButtonUsable to refresh colors (since valid states are 0-3)
         button.outofrange = nil
-        button.vertexstate = 0
+        button.vertexstate = -1
         
         self:UpdateButtonState(button)
         self:UpdateButtonUsable(button)
@@ -454,6 +455,18 @@ function ActionBars:UpdateButton(button)
         cooldown:Hide()
         button.rangeTimer = nil
         button.isSpecialBinding = nil
+        -- Reset color state for empty slots
+        button.outofrange = nil
+        button.vertexstate = -1
+        -- Reset colors to normal (white) for normalTexture and overlay
+        local normalTexture = getglobal(button:GetName().."NormalTexture")
+        local overlay = getglobal(button:GetName().."Overlay")
+        if normalTexture then
+            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
+        if overlay then
+            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
     end
     
     -- Apply button appearance styling after updating button content
@@ -743,9 +756,11 @@ end
 function ActionBars:UpdateButtonUsable(button)
     local actionID = self:GetActionID(button)
     local icon = getglobal(button:GetName().."Icon")
+    local normalTexture = getglobal(button:GetName().."NormalTexture")
+    local overlay = getglobal(button:GetName().."Overlay")  -- Modern style overlay
     if not icon then return end
     
-    local usable, oom = IsUsableAction(actionID)
+    local isUsable, notEnoughMana = IsUsableAction(actionID)
     local newVertexState = 0
     
     -- Check range first (if out of range, show red)
@@ -753,28 +768,52 @@ function ActionBars:UpdateButtonUsable(button)
         newVertexState = 1
         if button.vertexstate ~= 1 then
             icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+            if normalTexture then
+                normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+            end
+            if overlay then
+                overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+            end
             button.vertexstate = 1
         end
-    -- Check out of mana
-    elseif oom then
-        newVertexState = 2
-        if button.vertexstate ~= 2 then
-            icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
-            button.vertexstate = 2
-        end
-    -- Check not usable
-    elseif not usable then
-        newVertexState = 3
-        if button.vertexstate ~= 3 then
-            icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
-            button.vertexstate = 3
-        end
-    -- Normal state
-    else
+    -- Usable - Blizzard colors from constants
+    elseif isUsable then
         newVertexState = 0
         if button.vertexstate ~= 0 then
             icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+            if normalTexture then
+                normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+            end
+            if overlay then
+                overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+            end
             button.vertexstate = 0
+        end
+    -- Not enough mana - Blizzard colors from constants
+    elseif notEnoughMana then
+        newVertexState = 2
+        if button.vertexstate ~= 2 then
+            icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+            if normalTexture then
+                normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+            end
+            if overlay then
+                overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+            end
+            button.vertexstate = 2
+        end
+    -- Not usable - Blizzard behavior: icon gray, border white
+    else
+        newVertexState = 3
+        if button.vertexstate ~= 3 then
+            icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
+            if normalTexture then
+                normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+            end
+            if overlay then
+                overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+            end
+            button.vertexstate = 3
         end
     end
 end
@@ -1437,10 +1476,47 @@ function ActionBars:SideBarButtonOnUpdate(button, elapsed)
         button.rangeTimer = button.rangeTimer - elapsed
         if button.rangeTimer <= 0 then
             local inRange = IsActionInRange(button.actionSlot)
+            local normalTexture = getglobal(button:GetName() .. "NormalTexture")
+            local overlay = getglobal(button:GetName() .. "Overlay")  -- Modern style overlay
             if inRange == 0 then
-                button.icon:SetVertexColor(1.0, 0.1, 0.1)
+                -- Out of range: red color (using same constants as main action bar)
+                button.icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+                if normalTexture then
+                    normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+                end
+                if overlay then
+                    overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+                end
+                button.outofrange = true
             else
-                button.icon:SetVertexColor(1.0, 1.0, 1.0)
+                -- In range: check usability again to get correct color
+                button.outofrange = nil
+                local isUsable, notEnoughMana = IsUsableAction(button.actionSlot)
+                if isUsable then
+                    button.icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+                    if normalTexture then
+                        normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+                    end
+                    if overlay then
+                        overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+                    end
+                elseif notEnoughMana then
+                    button.icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+                    if normalTexture then
+                        normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+                    end
+                    if overlay then
+                        overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+                    end
+                else
+                    button.icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
+                    if normalTexture then
+                        normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+                    end
+                    if overlay then
+                        overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+                    end
+                end
             end
             button.rangeTimer = self.RANGE_CHECK_TIME
         end
@@ -1495,14 +1571,47 @@ function ActionBars:UpdateSideBarButton(button)
         button.count:Hide()
     end
     
-    -- Update usable state
+    -- Update usable state - exact Blizzard behavior (using same constants as main action bar)
     local isUsable, notEnoughMana = IsUsableAction(actionSlot)
-    if isUsable then
-        button.icon:SetVertexColor(1.0, 1.0, 1.0)
+    local normalTexture = getglobal(button:GetName() .. "NormalTexture")
+    local overlay = getglobal(button:GetName() .. "Overlay")  -- Modern style overlay
+    
+    -- Check range first (if out of range, show red)
+    if button.outofrange then
+        button.icon:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+        if normalTexture then
+            normalTexture:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+        end
+        if overlay then
+            overlay:SetVertexColor(self.RANGE_COLOR[1], self.RANGE_COLOR[2], self.RANGE_COLOR[3], self.RANGE_COLOR[4])
+        end
+    elseif isUsable then
+        -- Usable: icon white, border white
+        button.icon:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        if normalTexture then
+            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
+        if overlay then
+            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
     elseif notEnoughMana then
-        button.icon:SetVertexColor(0.5, 0.5, 1.0)
+        -- Not enough mana: icon blue, border blue
+        button.icon:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+        if normalTexture then
+            normalTexture:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+        end
+        if overlay then
+            overlay:SetVertexColor(self.OOM_COLOR[1], self.OOM_COLOR[2], self.OOM_COLOR[3], self.OOM_COLOR[4])
+        end
     else
-        button.icon:SetVertexColor(0.4, 0.4, 0.4)
+        -- Not usable: icon gray, border white (Blizzard behavior)
+        button.icon:SetVertexColor(self.NA_COLOR[1], self.NA_COLOR[2], self.NA_COLOR[3], self.NA_COLOR[4])
+        if normalTexture then
+            normalTexture:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
+        if overlay then
+            overlay:SetVertexColor(self.NORMAL_COLOR[1], self.NORMAL_COLOR[2], self.NORMAL_COLOR[3], self.NORMAL_COLOR[4])
+        end
     end
     
     -- Update cooldown
