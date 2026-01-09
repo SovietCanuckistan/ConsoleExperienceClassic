@@ -294,9 +294,17 @@ function CE_ClickCursor(mouseButton)
             ConsoleExperience.keyboard:Show(element)
             CE_Debug("Virtual keyboard shown for EditBox")
         else
-            -- Keyboard disabled - use regular focus
+            -- Keyboard disabled - show info dialog and focus the EditBox
             element:SetFocus()
             CE_Debug("EditBox focused (keyboard disabled)")
+            
+            -- Show info dialog to let user know how to exit
+            if not CE_EditBoxInfoDialog then
+                CE_CreateEditBoxInfoDialog()
+            end
+            if CE_EditBoxInfoDialog then
+                CE_EditBoxInfoDialog:Show()
+            end
         end
     elseif element:IsObjectType("Slider") then
         -- For sliders, left/right click could adjust value
@@ -780,6 +788,66 @@ function CE_ToggleRadialMenu()
     else
         CE_Debug("Radial module not found!")
     end
+end
+
+-- ============================================================================
+-- EditBox Info Dialog (shown when virtual keyboard is disabled)
+-- ============================================================================
+
+function CE_CreateEditBoxInfoDialog()
+    if CE_EditBoxInfoDialog then return end
+    
+    -- Create dialog frame
+    local dialog = CreateFrame("Frame", "CE_EditBoxInfoDialog", UIParent)
+    dialog:SetWidth(350)
+    dialog:SetHeight(100)
+    dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+    dialog:SetFrameStrata("DIALOG")
+    dialog:SetFrameLevel(200)
+    dialog:EnableMouse(true)
+    dialog:Hide()
+    
+    -- Background
+    dialog:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true,
+        tileSize = 32,
+        edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    
+    -- Title
+    local title = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOP", dialog, "TOP", 0, -20)
+    title:SetText("Virtual Keyboard Disabled")
+    title:SetTextColor(1, 0.82, 0, 1)
+    
+    -- Info text
+    local infoText = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    infoText:SetPoint("TOP", title, "BOTTOM", 0, -10)
+    infoText:SetWidth(320)
+    infoText:SetText("Press ESCAPE to exit the text field and resume controller navigation.")
+    infoText:SetTextColor(1, 1, 1, 1)
+    
+    -- Auto-hide after a few seconds
+    dialog:SetScript("OnShow", function()
+        this.elapsed = 0
+    end)
+    
+    dialog:SetScript("OnUpdate", function()
+        this.elapsed = (this.elapsed or 0) + arg1
+        if this.elapsed > 4 then  -- Hide after 4 seconds
+            this:Hide()
+        end
+    end)
+    
+    -- Also hide when Escape is pressed (EditBox will lose focus)
+    dialog:SetScript("OnHide", function()
+        this.elapsed = 0
+    end)
+    
+    CE_EditBoxInfoDialog = dialog
 end
 
 -- Module loaded silently
