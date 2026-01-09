@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.11.1...v0.12.0) (2026-01-09)
+
+
+### Features
+
+* add support for always opening all the bags ([84c616a](https://github.com/pepordev/ConsoleExperienceClassic/commit/84c616ad48038cd4ab03b6c674963636c4ff1e33))
+
+
+### Bug Fixes
+
+* correct bag actions for B button ([8075e80](https://github.com/pepordev/ConsoleExperienceClassic/commit/8075e80cf8b0c45117844ae875bde4cc10abeb89))
+
 ## [0.11.1](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.11.0...v0.11.1) (2026-01-09)
 
 
