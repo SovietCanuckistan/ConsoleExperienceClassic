@@ -1322,6 +1322,15 @@ function Config:CreateBarsSection()
         T("Left Bar Buttons"),
         T("Number of buttons on the left side bar. Range: 1-5."))
     leftCountEditBox:SetPoint("LEFT", leftCountLabel, "RIGHT", 5, 0)
+    leftCountEditBox:SetScript("OnTextChanged", function()
+        local num = tonumber(this:GetText()) or 3
+        if num >= 1 and num <= 5 then
+            Config:Set("sideBarLeftButtons", num)
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+                ConsoleExperience.actionbars:UpdateSideBars()
+            end
+        end
+    end)
     
     -- ==================== Right Side Bar Box ====================
     local rightSideBox = self:CreateSectionBox(section, T("Right Action Bar (Touch)"))
@@ -1360,6 +1369,15 @@ function Config:CreateBarsSection()
         T("Right Bar Buttons"),
         T("Number of buttons on the right side bar. Range: 1-5."))
     rightCountEditBox:SetPoint("LEFT", rightCountLabel, "RIGHT", 5, 0)
+    rightCountEditBox:SetScript("OnTextChanged", function()
+        local num = tonumber(this:GetText()) or 3
+        if num >= 1 and num <= 5 then
+            Config:Set("sideBarRightButtons", num)
+            if ConsoleExperience.actionbars and ConsoleExperience.actionbars.UpdateSideBars then
+                ConsoleExperience.actionbars:UpdateSideBars()
+            end
+        end
+    end)
     
     -- ==================== XP Bar Box ====================
     local xpBox = self:CreateSectionBox(section, T("XP Bar"))

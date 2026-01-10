@@ -214,10 +214,12 @@ function CE_ClickCursor(mouseButton)
         if actionSlot then
             if mouseButton == "LeftButton" then
                 -- A button: Pickup if slot has item and cursor is empty, Place if cursor has item
+                -- Also check fake cursor for macros (which don't trigger CursorHasItem/CursorHasSpell)
                 local hasCursorItem = CursorHasItem() or CursorHasSpell()
+                local hasFakeCursorItem = Cursor and Cursor.heldItemTexturePath
                 local hasSlotAction = HasAction(actionSlot)
                 
-                if hasCursorItem then
+                if hasCursorItem or hasFakeCursorItem then
                     -- Cursor has item - place it (will swap if slot has item)
                     -- Get slot texture BEFORE placing (in case we swap)
                     local slotItemTexture = nil
@@ -240,18 +242,12 @@ function CE_ClickCursor(mouseButton)
                     end
                     
                     -- Update fake cursor based on result
-                    if CursorHasItem() or CursorHasSpell() then
-                        -- Item swap occurred - show the swapped item on fake cursor
-                        if slotItemTexture and ConsoleExperience.cursor and ConsoleExperience.cursor.SetHeldItemTexture then
-                            ConsoleExperience.cursor:SetHeldItemTexture(slotItemTexture)
-                            CE_Debug("Swapped items - showing swapped item on fake cursor")
-                        end
-                    else
-                        -- Item was placed (slot was empty) - clear fake cursor
-                        if ConsoleExperience.cursor and ConsoleExperience.cursor.ClearHeldItemTexture then
-                            ConsoleExperience.cursor:ClearHeldItemTexture()
-                        end
+                    -- For macros, CursorHasItem/CursorHasSpell won't detect a swap
+                    -- So we just clear the fake cursor since PlaceAction was called
+                    if ConsoleExperience.cursor and ConsoleExperience.cursor.ClearHeldItemTexture then
+                        ConsoleExperience.cursor:ClearHeldItemTexture()
                     end
+                    CE_Debug("Item placed, fake cursor cleared")
                 elseif hasSlotAction then
                     -- Pickup item from slot (only if slot has action and cursor is empty)
                     -- Get texture BEFORE picking up (slot will be empty after PickupAction)
@@ -616,14 +612,66 @@ function CE_PickupItem()
         end
     elseif string.find(buttonName, "MacroButton%d+") then
         -- Macro button
-        local _, _, buttonNum = string.find(buttonName, "MacroButton(%d+)")
-        local id = tonumber(buttonNum)
-        if id then
-            local macroName, macroTexture = GetMacroInfo(id)
+        CE_Debug("CE_PickupItem: Processing macro button: " .. buttonName)
+        
+        -- Try multiple methods to get the macro index
+        local macroIndex = nil
+        
+        -- Method 1: Use MacroFrame.selectedMacro if available (set when clicking the button)
+        if MacroFrame and MacroFrame.selectedMacro then
+            macroIndex = MacroFrame.selectedMacro
+            CE_Debug("CE_PickupItem: Using MacroFrame.selectedMacro = " .. tostring(macroIndex))
+        end
+        
+        -- Method 2: Calculate from button ID and macroBase
+        if not macroIndex or macroIndex == 0 then
+            local macroBase = 0
+            if MacroFrame and MacroFrame.macroBase then
+                macroBase = MacroFrame.macroBase
+            end
+            local buttonIndex = button:GetID()
+            if buttonIndex and buttonIndex > 0 then
+                macroIndex = macroBase + buttonIndex
+                CE_Debug("CE_PickupItem: Calculated macroIndex = " .. tostring(macroBase) .. " + " .. tostring(buttonIndex) .. " = " .. tostring(macroIndex))
+            end
+        end
+        
+        -- Method 3: Extract from button name as fallback
+        if not macroIndex or macroIndex == 0 then
+            local _, _, buttonNum = string.find(buttonName, "MacroButton(%d+)")
+            if buttonNum then
+                macroIndex = tonumber(buttonNum)
+                CE_Debug("CE_PickupItem: Using button name number = " .. tostring(macroIndex))
+            end
+        end
+        
+        -- Get macro info and texture
+        if macroIndex and macroIndex > 0 then
+            local macroName, macroTexture, macroBody = GetMacroInfo(macroIndex)
+            CE_Debug("CE_PickupItem: GetMacroInfo(" .. macroIndex .. ") = name:" .. tostring(macroName) .. ", texture:" .. tostring(macroTexture))
+            
             if macroTexture then
                 pickedUpTexture = macroTexture
+            else
+                -- Fallback: try to get texture from button's icon element
+                local iconElement = getglobal(buttonName .. "Icon")
+                if iconElement then
+                    local tex = iconElement:GetTexture()
+                    CE_Debug("CE_PickupItem: Button icon texture = " .. tostring(tex))
+                    if tex then
+                        pickedUpTexture = tex
+                    end
+                end
             end
-            PickupMacro(id)
+            
+            -- Pick up the macro
+            CE_Debug("CE_PickupItem: Calling PickupMacro(" .. macroIndex .. ")")
+            PickupMacro(macroIndex)
+            
+            -- Verify pickup worked
+            CE_Debug("CE_PickupItem: After PickupMacro, CursorHasItem=" .. tostring(CursorHasItem()) .. ", CursorHasSpell=" .. tostring(CursorHasSpell()))
+        else
+            CE_Debug("CE_PickupItem: ERROR - Could not determine macro index")
         end
     elseif string.find(buttonName, "CEPlacementButton%d+") then
         -- Placement frame button - use action slot from button
@@ -666,7 +714,10 @@ function CE_Bind()
     CE_PickupItem()
     
     -- Show placement frame when binding items to action bars
-    if CursorHasSpell() or CursorHasItem() then
+    -- Check cursor state OR if fake cursor has a held item (for macros which may not trigger CursorHasSpell/CursorHasItem)
+    local Cursor = ConsoleExperience.cursor
+    local hasHeldItem = Cursor and Cursor.heldItemTexturePath
+    if CursorHasSpell() or CursorHasItem() or hasHeldItem then
         if ConsoleExperience.placement then
             ConsoleExperience.placement:Show()
         end

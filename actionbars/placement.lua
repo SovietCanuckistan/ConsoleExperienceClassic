@@ -323,7 +323,10 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
     
     -- Click handler - place cursor item
     button:SetScript("OnClick", function()
-        if CursorHasItem() or CursorHasSpell() then
+        -- Check for cursor item OR fake cursor item (for macros)
+        local hasCursorItem = CursorHasItem() or CursorHasSpell()
+        local hasFakeCursorItem = ConsoleExperience.cursor and ConsoleExperience.cursor.heldItemTexturePath
+        if hasCursorItem or hasFakeCursorItem then
             PlaceAction(this.actionSlot)
             CE_Debug("Placed item in action slot " .. this.actionSlot)
             
@@ -394,7 +397,10 @@ function Placement:CreateActionButton(parent, actionSlot, buttonIndex, pageIndex
     -- Receive drag
     button:RegisterForDrag("LeftButton")
     button:SetScript("OnReceiveDrag", function()
-        if CursorHasItem() or CursorHasSpell() then
+        -- Check for cursor item OR fake cursor item (for macros)
+        local hasCursorItem = CursorHasItem() or CursorHasSpell()
+        local hasFakeCursorItem = ConsoleExperience.cursor and ConsoleExperience.cursor.heldItemTexturePath
+        if hasCursorItem or hasFakeCursorItem then
             PlaceAction(this.actionSlot)
             Placement:UpdateButton(this)
             
@@ -561,7 +567,10 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
     
     -- Click handler - place cursor item
     button:SetScript("OnClick", function()
-        if CursorHasItem() or CursorHasSpell() then
+        -- Check for cursor item OR fake cursor item (for macros)
+        local hasCursorItem = CursorHasItem() or CursorHasSpell()
+        local hasFakeCursorItem = ConsoleExperience.cursor and ConsoleExperience.cursor.heldItemTexturePath
+        if hasCursorItem or hasFakeCursorItem then
             PlaceAction(this.actionSlot)
             CE_Debug("Placed item in side bar slot " .. this.actionSlot)
             
@@ -619,7 +628,10 @@ function Placement:CreateSideBarPlacementButton(parent, actionSlot, buttonIndex,
     -- Receive drag
     button:RegisterForDrag("LeftButton")
     button:SetScript("OnReceiveDrag", function()
-        if CursorHasItem() or CursorHasSpell() then
+        -- Check for cursor item OR fake cursor item (for macros)
+        local hasCursorItem = CursorHasItem() or CursorHasSpell()
+        local hasFakeCursorItem = ConsoleExperience.cursor and ConsoleExperience.cursor.heldItemTexturePath
+        if hasCursorItem or hasFakeCursorItem then
             PlaceAction(this.actionSlot)
             Placement:UpdateSideBarPlacementButton(this)
             

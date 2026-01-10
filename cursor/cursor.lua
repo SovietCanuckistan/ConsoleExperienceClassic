@@ -114,6 +114,16 @@ function Cursor:UpdateCursorState()
     local hasSpell = CursorHasSpell()
     local hasMoney = CursorHasMoney and CursorHasMoney()
     
+    -- If we have a manually set texture (e.g., for macros), keep showing it
+    -- Macros don't trigger CursorHasItem/CursorHasSpell
+    if self.heldItemTexturePath then
+        if not heldTexture:IsShown() then
+            heldTexture:SetTexture(self.heldItemTexturePath)
+            heldTexture:Show()
+        end
+        return  -- Don't auto-clear manually set textures
+    end
+    
     if hasItem or hasSpell or hasMoney then
         -- Still holding something, keep showing
         if self.heldItemTexturePath and not heldTexture:IsShown() then
