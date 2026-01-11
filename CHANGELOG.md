@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.2](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.12.1...v0.12.2) (2026-01-11)
+
+
+### Bug Fixes
+
+* add LFG frame to the cursor system ([ac1c719](https://github.com/pepordev/ConsoleExperienceClassic/commit/ac1c719bb10be5801a5bcf4bd69dcbc33b9beb5f))
+* correct castbar, now supports channeling ([cab3595](https://github.com/pepordev/ConsoleExperienceClassic/commit/cab359549b4ed4a85a5066a4a726174e09d4f45f))
+* correct radial menu ([22cf3ea](https://github.com/pepordev/ConsoleExperienceClassic/commit/22cf3ea510774c64e1fe7dd766fb425b9807115c))
+
 ## [0.12.1](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.12.0...v0.12.1) (2026-01-10)
 
 
