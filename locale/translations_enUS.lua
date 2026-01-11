@@ -92,9 +92,12 @@ ConsoleExperience_translation["enUS"] = {
     ["Enable Cast Bar"] = "Enable Cast Bar",
     ["Cast Bar Height"] = "Cast Bar Height",
     ["Cast Bar Color"] = "Cast Bar Color",
+    ["Channel"] = "Channel",
+    ["Channel Color"] = "Channel Color",
     ["Enable the custom cast bar that appears above chat."] = "Enable the custom cast bar that appears above chat.",
     ["Height of cast bar in pixels. Range: 20-100."] = "Height of cast bar in pixels. Range: 20-100.",
     ["Click to choose the cast bar fill color."] = "Click to choose the cast bar fill color.",
+    ["Click to choose the color for channeling spells (bandages, etc)."] = "Click to choose the color for channeling spells (bandages, etc).",
     ["Configure the custom cast bar that appears above chat."] = "Configure the custom cast bar that appears above chat.",
     
     -- Keybindings

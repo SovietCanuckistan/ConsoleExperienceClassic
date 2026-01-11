@@ -221,11 +221,17 @@ function CastBar:SetupEvents()
         
         if event == "SPELLCAST_START" then
             -- arg1 = spell name, arg2 = cast time (ms)
+            local castTime = tonumber(arg2)
+            if not castTime or castTime <= 0 then
+                -- Invalid cast time, ignore this event
+                return
+            end
+            
             this.casting = true
             this.channeling = false
             this.spellName = arg1 or "Casting"
             this.startTime = GetTime()
-            this.maxValue = this.startTime + (tonumber(arg2) / 1000)
+            this.maxValue = this.startTime + (castTime / 1000)
             
             -- Use absolute time values like Blizzard does
             this.bar:SetMinMaxValues(this.startTime, this.maxValue)
@@ -250,29 +256,50 @@ function CastBar:SetupEvents()
             
         elseif event == "SPELLCAST_DELAYED" then
             -- arg1 = delay amount (ms)
-            if this.casting then
-                this.startTime = this.startTime + (tonumber(arg1) / 1000)
-                this.maxValue = this.maxValue + (tonumber(arg1) / 1000)
+            local delayAmount = tonumber(arg1)
+            if this.casting and delayAmount and this.startTime and this.maxValue then
+                this.startTime = this.startTime + (delayAmount / 1000)
+                this.maxValue = this.maxValue + (delayAmount / 1000)
                 this.bar:SetMinMaxValues(this.startTime, this.maxValue)
             end
             
         elseif event == "SPELLCAST_CHANNEL_START" then
-            -- arg1 = spell name, arg2 = channel time (ms)
+            -- TurtleWoW: arg1 = channel time (ms), arg2 = spell name
+            -- (This is reversed from standard vanilla where arg1=name, arg2=time)
+            CE_Debug("SPELLCAST_CHANNEL_START: arg1=" .. tostring(arg1) .. ", arg2=" .. tostring(arg2))
+            
+            local channelTime = tonumber(arg1)
+            local spellName = arg2
+            
+            -- Fallback: if arg1 looks like a spell name, swap them (standard vanilla order)
+            if not channelTime and type(arg1) == "string" then
+                channelTime = tonumber(arg2)
+                spellName = arg1
+            end
+            
+            -- Default channel time if still invalid
+            if not channelTime or channelTime <= 0 then
+                channelTime = 8000
+                CE_Debug("Using default channel time: 8000ms")
+            end
+            
             this.casting = false
             this.channeling = true
-            this.spellName = arg1 or "Channeling"
+            this.spellName = spellName or "Channeling"
             this.startTime = GetTime()
-            this.endTime = this.startTime + (tonumber(arg2) / 1000)
+            this.endTime = this.startTime + (channelTime / 1000)
+            
+            CE_Debug("Channel started: " .. tostring(this.spellName) .. ", duration=" .. (channelTime/1000) .. "s")
             
             -- Use absolute time values like Blizzard does
             this.bar:SetMinMaxValues(this.startTime, this.endTime)
             this.bar:SetValue(this.endTime)  -- Start full for channeling
             this.text:SetText(this.spellName)
             
-            -- Set color from config
-            local colorR = config:Get("castbarColorR") or 0.0
-            local colorG = config:Get("castbarColorG") or 0.5
-            local colorB = config:Get("castbarColorB") or 1.0
+            -- Set channel color from config (gold by default)
+            local colorR = config:Get("castbarChannelColorR") or 1.0
+            local colorG = config:Get("castbarChannelColorG") or 0.75
+            local colorB = config:Get("castbarChannelColorB") or 0.25
             this.bar:SetStatusBarColor(colorR, colorG, colorB, 1.0)
             
             this.spark:Show()
@@ -281,14 +308,19 @@ function CastBar:SetupEvents()
             
         elseif event == "SPELLCAST_CHANNEL_UPDATE" then
             -- arg1 = new channel time remaining (ms)
-            if this.channeling then
+            CE_Debug("SPELLCAST_CHANNEL_UPDATE: arg1=" .. tostring(arg1))
+            local newTimeRemaining = tonumber(arg1)
+            if this.channeling and newTimeRemaining and this.endTime and this.startTime then
                 local origDuration = this.endTime - this.startTime
-                this.endTime = GetTime() + (tonumber(arg1) / 1000)
-                this.startTime = this.endTime - origDuration
-                this.bar:SetMinMaxValues(this.startTime, this.endTime)
+                if origDuration > 0 then
+                    this.endTime = GetTime() + (newTimeRemaining / 1000)
+                    this.startTime = this.endTime - origDuration
+                    this.bar:SetMinMaxValues(this.startTime, this.endTime)
+                end
             end
             
         elseif event == "SPELLCAST_CHANNEL_STOP" then
+            CE_Debug("SPELLCAST_CHANNEL_STOP received")
             this.casting = false
             this.channeling = false
             this.spark:Hide()
@@ -302,6 +334,14 @@ function CastBar:SetupEvents()
     -- OnUpdate for smooth progress (following Blizzard's approach)
     bar:SetScript("OnUpdate", function()
         if this.casting then
+            -- Safety check for required values
+            if not this.maxValue or not this.startTime then
+                this.casting = false
+                this.spark:Hide()
+                this:Hide()
+                return
+            end
+            
             local status = GetTime()
             if status > this.maxValue then
                 status = this.maxValue
@@ -311,7 +351,11 @@ function CastBar:SetupEvents()
             -- Calculate spark position like Blizzard does
             -- Spark is positioned relative to parent frame, accounting for 3px padding
             local barInnerWidth = this:GetWidth() - 6  -- subtract 3px padding on each side
-            local sparkPosition = ((status - this.startTime) / (this.maxValue - this.startTime)) * barInnerWidth
+            local duration = this.maxValue - this.startTime
+            local sparkPosition = 0
+            if duration > 0 then
+                sparkPosition = ((status - this.startTime) / duration) * barInnerWidth
+            end
             if sparkPosition < 0 then
                 sparkPosition = 0
             end
@@ -327,11 +371,19 @@ function CastBar:SetupEvents()
             end
             
         elseif this.channeling then
+            -- Safety check for required values
+            if not this.endTime or not this.startTime then
+                this.channeling = false
+                this.spark:Hide()
+                this:Hide()
+                return
+            end
+            
             local time = GetTime()
             if time > this.endTime then
                 time = this.endTime
             end
-            if time == this.endTime then
+            if time >= this.endTime then
                 this.channeling = false
                 this.spark:Hide()
                 this:Hide()
@@ -344,7 +396,11 @@ function CastBar:SetupEvents()
             
             -- Calculate spark position
             local barInnerWidth = this:GetWidth() - 6  -- subtract 3px padding on each side
-            local sparkPosition = ((barValue - this.startTime) / (this.endTime - this.startTime)) * barInnerWidth
+            local duration = this.endTime - this.startTime
+            local sparkPosition = 0
+            if duration > 0 then
+                sparkPosition = ((barValue - this.startTime) / duration) * barInnerWidth
+            end
             this.spark:ClearAllPoints()
             this.spark:SetPoint("CENTER", this, "LEFT", 3 + sparkPosition, 0)
             

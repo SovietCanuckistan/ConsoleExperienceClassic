@@ -67,9 +67,12 @@ Config.DEFAULTS = {
     -- Castbar settings
     castbarEnabled = true,  -- Castbar enabled by default
     castbarHeight = 20,     -- Default height
-    castbarColorR = 0.0,    -- Blue by default
+    castbarColorR = 0.0,    -- Blue by default (for regular casts)
     castbarColorG = 0.5,
     castbarColorB = 1.0,
+    castbarChannelColorR = 1.0,    -- Gold by default (for channeling)
+    castbarChannelColorG = 0.75,
+    castbarChannelColorB = 0.25,
     -- Keybinding settings
     useAForJump = true,  -- If true, A button (key 1) is bound to JUMP instead of CE_ACTION_1
     -- Locale settings
@@ -1726,6 +1729,72 @@ function Config:CreateBarsSection()
             if ConsoleExperience.castbar and ConsoleExperience.castbar.UpdateColor then
                 ConsoleExperience.castbar:UpdateColor()
             end
+        end
+        
+        ColorPickerFrame:SetColorRGB(r, g, b)
+        ColorPickerFrame.hasOpacity = false
+        
+        local delayFrame = CreateFrame("Frame")
+        delayFrame:SetScript("OnUpdate", function()
+            delayFrame:Hide()
+            ColorPickerFrame:Show()
+        end)
+        delayFrame:Show()
+    end)
+    
+    -- Channel color picker
+    local channelColorLabel = castBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    channelColorLabel:SetPoint("LEFT", castColorBtn, "RIGHT", 20, 0)
+    channelColorLabel:SetText(T("Channel") .. ":")
+    
+    local channelColorBtn = CreateFrame("Button", self:GetNextElementName("ColorBtn"), castBox)
+    channelColorBtn:SetWidth(40)
+    channelColorBtn:SetHeight(20)
+    channelColorBtn:SetPoint("LEFT", channelColorLabel, "RIGHT", 5, 0)
+    channelColorBtn.label = T("Channel Color")
+    channelColorBtn.tooltipText = T("Click to choose the color for channeling spells (bandages, etc).")
+    
+    local channelColorPreview = channelColorBtn:CreateTexture(nil, "BACKGROUND")
+    channelColorPreview:SetAllPoints()
+    
+    local function UpdateChannelColorPreview()
+        local r = Config:Get("castbarChannelColorR") or 1.0
+        local g = Config:Get("castbarChannelColorG") or 0.75
+        local b = Config:Get("castbarChannelColorB") or 0.25
+        channelColorPreview:SetTexture(r, g, b)
+    end
+    UpdateChannelColorPreview()
+    
+    channelColorBtn:SetBackdrop({
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 8,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 }
+    })
+    channelColorBtn:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+    
+    channelColorBtn:SetScript("OnClick", function()
+        local r = Config:Get("castbarChannelColorR") or 1.0
+        local g = Config:Get("castbarChannelColorG") or 0.75
+        local b = Config:Get("castbarChannelColorB") or 0.25
+        
+        ColorPickerFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+        ColorPickerFrame:SetFrameLevel(2000)
+        
+        if ColorPickerOkayButton then
+            ColorPickerOkayButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerOkayButton:SetFrameLevel(2001)
+        end
+        if ColorPickerCancelButton then
+            ColorPickerCancelButton:SetFrameStrata("FULLSCREEN_DIALOG")
+            ColorPickerCancelButton:SetFrameLevel(2001)
+        end
+        
+        ColorPickerFrame.func = function()
+            local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+            Config:Set("castbarChannelColorR", newR)
+            Config:Set("castbarChannelColorG", newG)
+            Config:Set("castbarChannelColorB", newB)
+            UpdateChannelColorPreview()
         end
         
         ColorPickerFrame:SetColorRGB(r, g, b)

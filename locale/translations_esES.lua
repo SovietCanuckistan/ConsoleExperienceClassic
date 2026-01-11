@@ -150,9 +150,12 @@ ConsoleExperience_translation["esES"] = {
     ["Enable Cast Bar"] = "Activar Barra de Lanzamiento",
     ["Cast Bar Height"] = "Alto Barra Lanzamiento",
     ["Cast Bar Color"] = "Color Barra Lanzamiento",
+    ["Channel"] = "Canalizar",
+    ["Channel Color"] = "Color Canalización",
     ["Enable the custom cast bar that appears above chat."] = "Activa la barra de lanzamiento personalizada que aparece sobre el chat.",
     ["Height of cast bar in pixels. Range: 20-100."] = "Alto de la barra de lanzamiento en píxeles. Rango: 20-100.",
     ["Click to choose the cast bar fill color."] = "Haz clic para elegir el color de relleno de la barra de lanzamiento.",
+    ["Click to choose the color for channeling spells (bandages, etc)."] = "Haz clic para elegir el color de hechizos canalizados (vendas, etc.).",
     ["Configure the custom cast bar that appears above chat."] = "Configura la barra de lanzamiento personalizada que aparece sobre el chat.",
     
     -- Chat

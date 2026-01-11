@@ -150,9 +150,12 @@ ConsoleExperience_translation["deDE"] = {
     ["Enable Cast Bar"] = "Zauberleiste aktivieren",
     ["Cast Bar Height"] = "Zauberleisten-Höhe",
     ["Cast Bar Color"] = "Zauberleisten-Farbe",
+    ["Channel"] = "Kanal",
+    ["Channel Color"] = "Kanalfarbe",
     ["Enable the custom cast bar that appears above chat."] = "Aktiviert die benutzerdefinierte Zauberleiste über dem Chat.",
     ["Height of cast bar in pixels. Range: 20-100."] = "Höhe der Zauberleiste in Pixeln. Bereich: 20-100.",
     ["Click to choose the cast bar fill color."] = "Klicken um die Füllfarbe der Zauberleiste zu wählen.",
+    ["Click to choose the color for channeling spells (bandages, etc)."] = "Klicken um die Farbe für Kanalisierungszauber (Verbände, etc.) zu wählen.",
     ["Configure the custom cast bar that appears above chat."] = "Konfiguriere die benutzerdefinierte Zauberleiste über dem Chat.",
     
     -- Chat
