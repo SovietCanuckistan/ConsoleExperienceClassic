@@ -133,3 +133,101 @@ end
 function CE_Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE]|r " .. tostring(msg))
 end
+
+-- Debug slash command to get frame name under mouse
+SLASH_CEFRAME1 = "/ceframe"
+SlashCmdList["CEFRAME"] = function(msg)
+    local frame = GetMouseFocus()
+    if frame then
+        local name = frame:GetName() or "(unnamed)"
+        local objType = frame:GetObjectType() or "unknown"
+        local parent = frame:GetParent()
+        local parentName = parent and (parent:GetName() or "(unnamed parent)") or "none"
+        
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE Frame]|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  Name: |cffffcc00" .. name .. "|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  Type: |cff88ccff" .. objType .. "|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  Parent: |cffcccccc" .. parentName .. "|r")
+        
+        -- Try to get texture info
+        local textureInfo = nil
+        
+        -- If frame itself is a texture
+        if frame.GetTexture and frame:GetTexture() then
+            textureInfo = frame:GetTexture()
+        end
+        
+        -- Try to find textures in common child elements
+        if not textureInfo then
+            -- Check for icon texture (common in buttons)
+            local iconName = name and (name .. "Icon")
+            local iconTex = iconName and getglobal(iconName)
+            if iconTex and iconTex.GetTexture then
+                textureInfo = iconTex:GetTexture()
+            end
+        end
+        
+        if not textureInfo then
+            -- Check NormalTexture (buttons)
+            if frame.GetNormalTexture then
+                local normalTex = frame:GetNormalTexture()
+                if normalTex and normalTex.GetTexture then
+                    textureInfo = normalTex:GetTexture()
+                end
+            end
+        end
+        
+        if not textureInfo then
+            -- Scan all regions for textures
+            local regions = { frame:GetRegions() }
+            for _, region in ipairs(regions) do
+                if region and region:GetObjectType() == "Texture" and region.GetTexture then
+                    local tex = region:GetTexture()
+                    if tex and tex ~= "" then
+                        textureInfo = tex
+                        break
+                    end
+                end
+            end
+        end
+        
+        if textureInfo then
+            DEFAULT_CHAT_FRAME:AddMessage("  Texture: |cff88ff88" .. tostring(textureInfo) .. "|r")
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("  Texture: |cff888888(none found)|r")
+        end
+        
+        -- Also show in a popup for easy copying
+        if msg == "copy" then
+            -- Create a simple editbox for copying
+            if not CE_FrameCopyBox then
+                local f = CreateFrame("Frame", "CE_FrameCopyBox", UIParent)
+                f:SetWidth(300)
+                f:SetHeight(50)
+                f:SetPoint("CENTER")
+                f:SetFrameStrata("DIALOG")
+                f:SetBackdrop({
+                    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+                    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+                    tile = true, tileSize = 32, edgeSize = 16,
+                    insets = { left = 5, right = 5, top = 5, bottom = 5 }
+                })
+                f:EnableMouse(true)
+                
+                local eb = CreateFrame("EditBox", nil, f)
+                eb:SetPoint("TOPLEFT", 10, -10)
+                eb:SetPoint("BOTTOMRIGHT", -10, 10)
+                eb:SetFontObject(GameFontNormal)
+                eb:SetAutoFocus(true)
+                eb:SetScript("OnEscapePressed", function() f:Hide() end)
+                f.editBox = eb
+            end
+            local copyText = textureInfo or name
+            CE_FrameCopyBox.editBox:SetText(copyText)
+            CE_FrameCopyBox.editBox:HighlightText()
+            CE_FrameCopyBox:Show()
+        end
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[CE Frame]|r No frame under mouse")
+    end
+end

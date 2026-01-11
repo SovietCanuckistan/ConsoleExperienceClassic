@@ -74,13 +74,13 @@ local menuItems = {
         name = "LFG",
         icon = "Interface\\Icons\\INV_Misc_GroupLooking",
         action = function() 
-            if ToggleLFGFrame then
-                ToggleLFGFrame()
-            elseif LFGParentFrame then
-                if LFGParentFrame:IsVisible() then
-                    HideUIPanel(LFGParentFrame)
+            if ToggleLFTFrame then
+                ToggleLFTFrame()
+            elseif LFTFrame then
+                if LFTFrame:IsVisible() then
+                    HideUIPanel(LFTFrame)
                 else
-                    ShowUIPanel(LFGParentFrame)
+                    ShowUIPanel(LFTFrame)
                 end
             else
                 CE_Debug("LFG not available")
@@ -111,15 +111,11 @@ local menuItems = {
         end
     },
     {
-        name = "Key Bindings",
+        name = "Action Bar Bindings",
         icon = "Interface\\Icons\\Spell_Nature_Lightning",
         action = function() 
-            if KeyBindingFrame then
-                if KeyBindingFrame:IsVisible() then
-                    HideUIPanel(KeyBindingFrame)
-                else
-                    ShowUIPanel(KeyBindingFrame)
-                end
+            if ConsoleExperience.placement then
+                ConsoleExperience.placement:Show()
             end
         end
     },
