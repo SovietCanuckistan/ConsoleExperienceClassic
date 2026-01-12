@@ -103,40 +103,169 @@ function ActionBars:Initialize()
     self:HookCooldownFrame()
 end
 
--- Hook CooldownFrame_SetTimer to ensure cooldowns match button size
+-- Hook CooldownFrame_SetTimer to hide default cooldowns for our buttons
 function ActionBars:HookCooldownFrame()
     if not self.cooldownHookSet then
         -- Store original function
         local originalSetTimer = CooldownFrame_SetTimer
-        -- Replace with our version that calls original then resizes
+        -- Replace with our version
         CooldownFrame_SetTimer = function(cooldown, start, duration, enable)
-            -- Call original function first
-            originalSetTimer(cooldown, start, duration, enable)
-            
-            -- Resize cooldown if it belongs to one of our action buttons
+            -- Hide cooldown if it belongs to one of our action buttons
+            -- We use our own cooldown system (darkened icon + timer text)
             if cooldown and cooldown:GetParent() then
                 local parent = cooldown:GetParent()
                 local parentName = parent:GetName() or ""
                 if string.find(parentName, "ConsoleActionButton") then
-                    -- Get button size (this is the actual button size from config)
-                    local buttonWidth = parent:GetWidth()
-                    -- Default cooldown size in WoW is typically 36
-                    local defaultCooldownSize = 36
-                    
-                    -- Calculate scale factor to match button size
-                    if buttonWidth > 0 then
-                        local scaleFactor = buttonWidth / defaultCooldownSize
-                        cooldown:SetScale(scaleFactor)
-                        -- Use TOPLEFT/BOTTOMRIGHT to fill the button area
-                        -- Small offsets to account for cooldown frame template behavior
-                        cooldown:ClearAllPoints()
-                        cooldown:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-                        cooldown:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
-                    end
+                    -- Hide default cooldown - we handle it ourselves
+                    cooldown:Hide()
+                    return
                 end
             end
+            -- For non-ConsoleActionButton cooldowns, call original
+            originalSetTimer(cooldown, start, duration, enable)
         end
         self.cooldownHookSet = true
+    end
+end
+
+-- ============================================================================
+-- Custom Circular Cooldown for Modern Style
+-- ============================================================================
+
+-- Create a circular cooldown overlay for a button
+function ActionBars:CreateCircularCooldown(button)
+    local buttonName = button:GetName()
+    local frameName = buttonName .. "CircularCooldown"
+    
+    -- Check if already created
+    if button.circularCooldown then
+        return button.circularCooldown
+    end
+    
+    -- Create the main cooldown frame (just for text, we'll darken the icon directly)
+    local frame = CreateFrame("Frame", frameName, button)
+    frame:SetFrameLevel(button:GetFrameLevel() + 5)
+    frame:SetAllPoints(button)
+    frame:Hide()
+    
+    -- Store cooldown state
+    frame.start = 0
+    frame.duration = 0
+    frame.enabled = false
+    
+    -- Store reference to the icon texture (we'll darken it during cooldown)
+    frame.icon = getglobal(buttonName .. "Icon") or button.icon
+    
+    -- Create cooldown text (remaining time) - like OmniCC
+    local text = frame:CreateFontString(frameName .. "Text", "OVERLAY", "GameFontNormalLarge")
+    text:SetPoint("CENTER", button, "CENTER", 0, 0)
+    text:SetTextColor(1, 0.8, 0, 1)  -- Gold color
+    text:SetText("")
+    frame.text = text
+    
+    -- OnUpdate handler for animation
+    frame:SetScript("OnUpdate", function()
+        ActionBars:UpdateCircularCooldown(this)
+    end)
+    
+    button.circularCooldown = frame
+    return frame
+end
+
+-- Update the circular cooldown animation
+function ActionBars:UpdateCircularCooldown(frame)
+    if not frame.enabled or frame.duration == 0 then
+        frame:Hide()
+        -- Restore icon color when cooldown ends
+        if frame.icon then
+            frame.icon:SetVertexColor(1, 1, 1, 1)
+        end
+        return
+    end
+    
+    local now = GetTime()
+    local elapsed = now - frame.start
+    local remaining = frame.duration - elapsed
+    
+    if remaining <= 0 then
+        -- Cooldown finished
+        frame.enabled = false
+        frame:Hide()
+        
+        -- Restore icon color
+        if frame.icon then
+            frame.icon:SetVertexColor(1, 1, 1, 1)
+        end
+        return
+    end
+    
+    -- Calculate progress (0 = just started, 1 = almost done)
+    local progress = elapsed / frame.duration
+    
+    -- Darken the icon based on cooldown progress
+    -- Start very dark (0.3) and gradually brighten to (0.7) as cooldown ends
+    if frame.icon then
+        local brightness = 0.3 + (progress * 0.4)
+        frame.icon:SetVertexColor(brightness, brightness, brightness, 1)
+    end
+    
+    -- Update cooldown text (no decimals)
+    if frame.text then
+        if remaining > 60 then
+            frame.text:SetText(math.floor(remaining / 60) .. "m")
+        elseif remaining > 0 then
+            frame.text:SetText(math.ceil(remaining))
+        else
+            frame.text:SetText("")
+        end
+    end
+end
+
+-- Start the circular cooldown
+function ActionBars:StartCircularCooldown(button, start, duration)
+    if not button.circularCooldown then
+        self:CreateCircularCooldown(button)
+    end
+    
+    local frame = button.circularCooldown
+    if not frame then return end
+    
+    if duration > 0 and start > 0 then
+        frame.start = start
+        frame.duration = duration
+        frame.enabled = true
+        frame:Show()
+        
+        -- Position text at icon center
+        local buttonSize = button:GetWidth()
+        if frame.text then
+            frame.text:ClearAllPoints()
+            frame.text:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
+        end
+        
+        -- Immediately darken the icon
+        if frame.icon then
+            frame.icon:SetVertexColor(0.3, 0.3, 0.3, 1)
+        end
+    else
+        frame.enabled = false
+        frame:Hide()
+        -- Restore icon color
+        if frame.icon then
+            frame.icon:SetVertexColor(1, 1, 1, 1)
+        end
+    end
+end
+
+-- Stop/hide the circular cooldown
+function ActionBars:StopCircularCooldown(button)
+    if button.circularCooldown then
+        button.circularCooldown.enabled = false
+        button.circularCooldown:Hide()
+        -- Restore icon color
+        if button.circularCooldown.icon then
+            button.circularCooldown.icon:SetVertexColor(1, 1, 1, 1)
+        end
     end
 end
 
@@ -584,17 +713,17 @@ function ActionBars:ApplyButtonAppearance(button)
             button:SetPushedTexture(pushedTex)
         end
         
-        -- Update CheckedTexture
+        -- Update CheckedTexture - use circular serenity texture
         local checkedTex = button:GetCheckedTexture()
         if checkedTex then
-            checkedTex:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-            checkedTex:SetWidth(overlaySize * 0.88)
-            checkedTex:SetHeight(overlaySize * 0.86)
+            checkedTex:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\actionbars\\serenity")
+            checkedTex:SetVertexColor(1, 1, 0.3, 0.8)  -- Yellow/gold glow
+            checkedTex:SetWidth(overlaySize)
+            checkedTex:SetHeight(overlaySize)
             checkedTex:ClearAllPoints()
-            if icon then
-                checkedTex:SetPoint("CENTER", icon, "CENTER", 0, -1)
-            end
+            checkedTex:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
             checkedTex:SetDrawLayer("OVERLAY")
+            checkedTex:SetBlendMode("ADD")
             button:SetCheckedTexture(checkedTex)
         end
         
@@ -608,22 +737,61 @@ function ActionBars:ApplyButtonAppearance(button)
             icon:SetTexCoord(0, 1, 0, 1)
         end
         
-        -- Flash texture (red overlay when attacking)
+        -- Flash texture (red overlay when attacking) - use circular texture
         if flash then
-            flash:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\actionbars\\overlayred")
-            local flashSize = buttonSize * 0.75
+            -- Use the same serenity texture with red color for circular flash
+            flash:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\actionbars\\serenity")
+            flash:SetVertexColor(1, 0, 0, 1)  -- Red color
+            local flashSize = buttonSize * 0.85
             flash:SetWidth(flashSize)
             flash:SetHeight(flashSize)
             flash:ClearAllPoints()
-            flash:SetPoint("TOPLEFT", button, "TOPLEFT", buttonSize * 0.075, -buttonSize * 0.075)
+            flash:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
             flash:SetTexCoord(0, 1, 0, 1)
+            flash:SetBlendMode("ADD")
         end
-        
-        -- ControllerIcon
+
+        -- Active frame glow/border - use circular textures for modern
+        if button.activeFrame then
+            local iconSize = buttonSize * 0.65
+            local glowSize = iconSize * 1.2
+            
+            if button.activeFrame.glow then
+                button.activeFrame.glow:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\actionbars\\serenity")
+                button.activeFrame.glow:SetWidth(glowSize)
+                button.activeFrame.glow:SetHeight(glowSize)
+                button.activeFrame.glow:ClearAllPoints()
+                button.activeFrame.glow:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
+                button.activeFrame.glow:SetVertexColor(1, 1, 0.5, 0.8)  -- Yellow glow
+            end
+            
+            if button.activeFrame.border then
+                button.activeFrame.border:SetTexture("Interface\\AddOns\\ConsoleExperienceClassic\\textures\\actionbars\\serenity")
+                button.activeFrame.border:SetWidth(glowSize)
+                button.activeFrame.border:SetHeight(glowSize)
+                button.activeFrame.border:ClearAllPoints()
+                button.activeFrame.border:SetPoint("CENTER", button, "CENTER", -buttonSize * 0.02, 0)
+            end
+        end
+
+        -- ControllerIcon - move to a high-level frame so it's above highlight
         if controllerIcon then
             local iconSize = math.max(12, buttonSize / 3)
             controllerIcon:SetWidth(iconSize)
             controllerIcon:SetHeight(iconSize)
+            
+            -- Create or get a frame to hold the controller icon above everything
+            if not button.controllerIconFrame then
+                local iconFrame = CreateFrame("Frame", button:GetName() .. "ControllerIconFrame", button)
+                iconFrame:SetFrameLevel(button:GetFrameLevel() + 10)
+                iconFrame:SetAllPoints(button)
+                button.controllerIconFrame = iconFrame
+            end
+            -- Reparent the controller icon to the high-level frame
+            controllerIcon:SetParent(button.controllerIconFrame)
+            controllerIcon:SetDrawLayer("OVERLAY")
+            controllerIcon:ClearAllPoints()
+            controllerIcon:SetPoint("TOP", button, "TOP", 0, 0)
             controllerIcon:Show()
         end
     else
@@ -657,6 +825,7 @@ function ActionBars:ApplyButtonAppearance(button)
         local highlightTex = button:GetHighlightTexture()
         if highlightTex then
             highlightTex:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
+            highlightTex:SetVertexColor(1, 1, 1, 1)
             highlightTex:SetBlendMode("ADD")
             highlightTex:SetAllPoints(button)
         end
@@ -674,6 +843,7 @@ function ActionBars:ApplyButtonAppearance(button)
         local checkedTex = button:GetCheckedTexture()
         if checkedTex then
             checkedTex:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+            checkedTex:SetVertexColor(1, 1, 1, 1)  -- Reset to white
             checkedTex:SetAllPoints(button)
             checkedTex:SetDrawLayer("ARTWORK")
             checkedTex:SetBlendMode("ADD")
@@ -691,18 +861,49 @@ function ActionBars:ApplyButtonAppearance(button)
         -- Flash texture for classic
         if flash then
             flash:SetTexture("Interface\\Buttons\\UI-QuickslotRed")
+            flash:SetVertexColor(1, 1, 1, 1)  -- Reset to white (no tint)
             flash:SetWidth(buttonSize - 4)
             flash:SetHeight(buttonSize - 4)
             flash:ClearAllPoints()
             flash:SetPoint("CENTER", button, "CENTER", 0, 0)
             flash:SetTexCoord(0, 1, 0, 1)
+            flash:SetBlendMode("BLEND")  -- Reset blend mode
         end
-        
-        -- ControllerIcon
+
+        -- Active frame glow/border - restore square textures for classic
+        if button.activeFrame then
+            if button.activeFrame.glow then
+                button.activeFrame.glow:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+                button.activeFrame.glow:SetVertexColor(1, 1, 1, 0.6)
+                button.activeFrame.glow:ClearAllPoints()
+                button.activeFrame.glow:SetAllPoints(button)
+            end
+            
+            if button.activeFrame.border then
+                button.activeFrame.border:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+                button.activeFrame.border:ClearAllPoints()
+                button.activeFrame.border:SetAllPoints(button)
+            end
+        end
+
+        -- ControllerIcon - move to a high-level frame so it's above highlight
         if controllerIcon then
             local iconSize = math.max(12, buttonSize / 3)
             controllerIcon:SetWidth(iconSize)
             controllerIcon:SetHeight(iconSize)
+            
+            -- Create or get a frame to hold the controller icon above everything
+            if not button.controllerIconFrame then
+                local iconFrame = CreateFrame("Frame", button:GetName() .. "ControllerIconFrame", button)
+                iconFrame:SetFrameLevel(button:GetFrameLevel() + 10)
+                iconFrame:SetAllPoints(button)
+                button.controllerIconFrame = iconFrame
+            end
+            -- Reparent the controller icon to the high-level frame
+            controllerIcon:SetParent(button.controllerIconFrame)
+            controllerIcon:SetDrawLayer("OVERLAY")
+            controllerIcon:ClearAllPoints()
+            controllerIcon:SetPoint("TOP", button, "TOP", 0, 0)
             controllerIcon:Show()
         end
     end
@@ -812,21 +1013,17 @@ function ActionBars:UpdateButtonCooldown(button)
     local actionID = self:GetActionID(button)
     local cooldown = getglobal(button:GetName().."Cooldown")
     local start, duration, enable = GetActionCooldown(actionID)
-    CooldownFrame_SetTimer(cooldown, start, duration, enable)
     
-    -- Ensure cooldown matches button size after timer is set
-    -- The hook will also handle this, but we do it here too for immediate update
-    if cooldown and button then
-        local buttonSize = button:GetWidth()
-        local defaultCooldownSize = 36
-        if buttonSize > 0 then
-            local scaleFactor = buttonSize / defaultCooldownSize
-            cooldown:SetScale(scaleFactor)
-            cooldown:ClearAllPoints()
-            -- Use TOPLEFT/BOTTOMRIGHT to fill the button area
-            cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
-            cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 0, 0)
-        end
+    -- Hide default square cooldown - we use our own for both styles
+    if cooldown then
+        cooldown:Hide()
+    end
+    
+    -- Use our cooldown (darkened icon + timer text) for both modern and classic
+    if enable == 1 and duration > 0 then
+        self:StartCircularCooldown(button, start, duration)
+    else
+        self:StopCircularCooldown(button)
     end
 end
 
@@ -1684,10 +1881,17 @@ end
 
 function ActionBars:UpdateSideBarButtonCooldown(button)
     local start, duration, enable = GetActionCooldown(button.actionSlot)
-    if start > 0 and duration > 0 and enable > 0 then
-        CooldownFrame_SetTimer(button.cooldown, start, duration, enable)
-    else
+    
+    -- Hide default square cooldown - we use our own for both styles
+    if button.cooldown then
         button.cooldown:Hide()
+    end
+    
+    -- Use our cooldown (darkened icon + timer text) for both modern and classic
+    if enable > 0 and duration > 0 and start > 0 then
+        self:StartCircularCooldown(button, start, duration)
+    else
+        self:StopCircularCooldown(button)
     end
 end
 
