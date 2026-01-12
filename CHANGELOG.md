@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.14.0](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.13.1...v0.14.0) (2026-01-12)
+
+
+### Features
+
+* added support for stance/shape action bars ([8094ad1](https://github.com/pepordev/ConsoleExperienceClassic/commit/8094ad17f88619b2db08575a9ed0ef1dbdb23127))
+
+
+### Bug Fixes
+
+* correct action bars textures ([5ba4c74](https://github.com/pepordev/ConsoleExperienceClassic/commit/5ba4c7497ce544fecbf7b9a73256957ebc45239a))
+* correct binding system ([60fcbdc](https://github.com/pepordev/ConsoleExperienceClassic/commit/60fcbdc9d0d7ee6f19889adfd6554cc8714e97c2))
+* correct bindings scroll ([4c04d71](https://github.com/pepordev/ConsoleExperienceClassic/commit/4c04d71b1efe47555ae61dbfaf78e56aed6ad137))
+* cursor system now auto scroll frames ([679120a](https://github.com/pepordev/ConsoleExperienceClassic/commit/679120a13cff17b5f3de2df9c6b1f6dbf409528b))
+
 ## [0.13.1](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.13.0...v0.13.1) (2026-01-11)
 
 
