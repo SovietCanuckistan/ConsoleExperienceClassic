@@ -2259,9 +2259,10 @@ function Config:CreateBindingsSection()
         currentY = currentY + rowHeight
     end
     
-    -- Set scroll child height
-    scrollChild:SetHeight(currentY + 20)
-    
+    -- Set scroll child height (add scroll frame height so last items can scroll to top)
+    local scrollFrameHeight = scrollFrame:GetHeight()
+    scrollChild:SetHeight(currentY + 20 + scrollFrameHeight)
+
     -- Update sidebar binding visibility based on config
     self:UpdateSidebarBindingVisibility()
     
@@ -2421,15 +2422,17 @@ function Config:UpdateSidebarBindingVisibility()
     end
     
     -- Update scroll child height to fit all visible content
-    local newHeight = currentY + 20
-    scrollChild:SetHeight(newHeight)
-    
-    -- Update scroll frame's scroll bar range
+    -- Add scroll frame height so last items can scroll to top for dropdown visibility
     if scrollFrame then
+        local scrollFrameHeight = scrollFrame:GetHeight()
+        local newHeight = currentY + 20 + scrollFrameHeight
+        scrollChild:SetHeight(newHeight)
+
+        -- Update scroll frame's scroll bar range
         local scrollBar = getglobal(scrollFrame:GetName() .. "ScrollBar")
         if scrollBar then
-            local scrollFrameHeight = scrollFrame:GetHeight()
-            local maxScroll = newHeight - scrollFrameHeight
+            -- maxScroll = total content height (without the extra padding)
+            local maxScroll = currentY + 20
             if maxScroll < 0 then maxScroll = 0 end
             scrollBar:SetMinMaxValues(0, maxScroll)
         end
