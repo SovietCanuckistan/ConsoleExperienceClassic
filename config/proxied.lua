@@ -335,15 +335,17 @@ end
 -- Stance Slot Mapping
 -- ============================================================================
 
--- Stance slot offsets (same as in bars.lua and placement.lua)
-local STANCE_OFFSETS = {
-    [0] = 0,    -- No stance/form (slots 1-10)
-    [1] = 72,   -- Bonus bar 1 (slots 73-82)
-    [2] = 84,   -- Bonus bar 2 (slots 85-94)
-    [3] = 96,   -- Bonus bar 3 (slots 97-106)
-    [4] = 108,  -- Bonus bar 4 (slots 109-118)
-    [5] = 120,  -- Bonus bar 5 (slots 121-130)
-}
+-- Bonus bar base offset (same as in bars.lua and placement.lua)
+local BONUS_BAR_BASE = 60
+
+-- Calculate offset for a given bonus bar number
+-- Formula: 60 + (bonusBar * 12)
+local function GetStanceOffset(bonusBar)
+    if not bonusBar or bonusBar == 0 then
+        return 0
+    end
+    return BONUS_BAR_BASE + (bonusBar * 12)
+end
 
 -- Check if a slot is a stance/form slot (bonus bar)
 function Proxied:IsStanceSlot(slot)
@@ -382,7 +384,7 @@ function Proxied:GetAllSlotsForButtonPosition(buttonPos)
     
     -- Add stance bar slots
     for bonusBar = 1, 5 do
-        table.insert(slots, STANCE_OFFSETS[bonusBar] + buttonPos)
+        table.insert(slots, GetStanceOffset(bonusBar) + buttonPos)
     end
     
     return slots

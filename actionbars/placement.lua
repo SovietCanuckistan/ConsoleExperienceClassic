@@ -16,16 +16,18 @@ local BUTTON_SPACING = 8
 local FRAME_PADDING = 25
 local ICON_SIZE = 14
 
--- Stance/form slot offsets (bonusBar * 12 + 60)
--- These are fixed regardless of which stance you're currently in
-local STANCE_OFFSETS = {
-    [0] = 0,    -- No stance/form (slots 1-10)
-    [1] = 72,   -- Bonus bar 1 (slots 73-82) - Battle/Bear/Stealth
-    [2] = 84,   -- Bonus bar 2 (slots 85-94) - Defensive/Aquatic
-    [3] = 96,   -- Bonus bar 3 (slots 97-106) - Berserker/Cat
-    [4] = 108,  -- Bonus bar 4 (slots 109-118) - Travel
-    [5] = 120,  -- Bonus bar 5 (slots 121-130) - Moonkin (if applicable)
-}
+-- Bonus bar base offset (6 pages * 12 buttons = 72, minus 12 = 60)
+local BONUS_BAR_BASE = 60
+
+-- Calculate offset for a given bonus bar number
+-- Formula: 60 + (bonusBar * 12)
+local function GetStanceOffset(bonusBar)
+    if not bonusBar or bonusBar == 0 then
+        return 0  -- Caster form uses slots 1-10
+    end
+    return BONUS_BAR_BASE + (bonusBar * 12)
+end
+
 
 -- Modifier page offsets (always the same)
 local MODIFIER_OFFSETS = {
@@ -42,75 +44,100 @@ local function L(key)
     return key
 end
 
+-- Get spell texture from spellbook by spell name
+-- This ensures we get the correct texture regardless of current form state
+local function GetSpellTextureFromSpellbook(spellName)
+    if not spellName or spellName == "" then
+        return nil
+    end
+    
+    -- Search through all spellbook tabs and slots
+    for tab = 1, GetNumSpellTabs() do
+        local _, _, offset, numSpells = GetSpellTabInfo(tab)
+        for i = 1, numSpells do
+            local slot = offset + i
+            local spellNameInBook, spellRank = GetSpellName(slot, BOOKTYPE_SPELL)
+            
+            -- Check if spell name matches (ignore rank)
+            if spellNameInBook and spellNameInBook == spellName then
+                local texture = GetSpellTexture(slot, BOOKTYPE_SPELL)
+                if texture then
+                    return texture
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
 -- Get stance/form info for the player's class
+-- Form index directly equals bonus bar offset (standard WoW behavior)
 function Placement:GetStanceInfo()
     local _, class = UnitClass("player")
     local numForms = GetNumShapeshiftForms() or 0
     local stances = {}
     
     if class == "WARRIOR" then
-        -- Warriors always have stances in a fixed order
-        -- Check which ones are learned
+        -- Warriors: form index = bonus bar offset
         for i = 1, numForms do
-            local _, name = GetShapeshiftFormInfo(i)
+            local texture, name = GetShapeshiftFormInfo(i)
+            -- Try to get texture from spellbook for consistency
+            local spellbookTexture = GetSpellTextureFromSpellbook(name)
             table.insert(stances, {
                 name = name or (L("Stance") .. " " .. i),
+                texture = spellbookTexture or texture,
                 bonusBar = i,
-                offset = STANCE_OFFSETS[i]
+                offset = GetStanceOffset(i)
             })
         end
     elseif class == "DRUID" then
         -- Druids: Caster (no form) + learned forms
-        -- Always show caster form first
+        -- Caster form uses base action bar (offset 0)
         table.insert(stances, {
             name = L("Caster"),
+            texture = "Interface\\Icons\\Spell_Nature_HealingTouch",
             bonusBar = 0,
-            offset = STANCE_OFFSETS[0]
+            offset = GetStanceOffset(0)
         })
+        -- Each form uses bonus bar = form index
         for i = 1, numForms do
-            local _, name = GetShapeshiftFormInfo(i)
+            local texture, name = GetShapeshiftFormInfo(i)
+            -- Get texture from spellbook to ensure consistency regardless of current form
+            local spellbookTexture = GetSpellTextureFromSpellbook(name)
             table.insert(stances, {
                 name = name or (L("Form") .. " " .. i),
+                texture = spellbookTexture or texture,
                 bonusBar = i,
-                offset = STANCE_OFFSETS[i]
+                offset = GetStanceOffset(i)
             })
         end
     elseif class == "ROGUE" then
         -- Rogues: Normal + Stealth
         table.insert(stances, {
             name = L("Normal"),
+            texture = "Interface\\Icons\\Ability_BackStab",
             bonusBar = 0,
-            offset = STANCE_OFFSETS[0]
+            offset = GetStanceOffset(0)
         })
         if numForms > 0 then
-            local _, name = GetShapeshiftFormInfo(1)
+            local texture, name = GetShapeshiftFormInfo(1)
+            -- Try to get texture from spellbook for consistency
+            local spellbookTexture = GetSpellTextureFromSpellbook(name)
             table.insert(stances, {
                 name = name or L("Stealth"),
+                texture = spellbookTexture or texture,
                 bonusBar = 1,
-                offset = STANCE_OFFSETS[1]
-            })
-        end
-    elseif class == "PRIEST" and numForms > 0 then
-        -- Priests with Shadowform
-        table.insert(stances, {
-            name = L("Normal"),
-            bonusBar = 0,
-            offset = STANCE_OFFSETS[0]
-        })
-        for i = 1, numForms do
-            local _, name = GetShapeshiftFormInfo(i)
-            table.insert(stances, {
-                name = name or L("Shadowform"),
-                bonusBar = i,
-                offset = STANCE_OFFSETS[i]
+                offset = GetStanceOffset(1)
             })
         end
     else
         -- Other classes: just base page
         table.insert(stances, {
             name = "",
+            texture = nil,
             bonusBar = 0,
-            offset = STANCE_OFFSETS[0]
+            offset = GetStanceOffset(0)
         })
     end
     
@@ -126,6 +153,7 @@ function Placement:BuildPageInfo()
     for i, stance in ipairs(stances) do
         table.insert(pages, {
             text = stance.name,
+            texture = stance.texture,  -- Form/stance icon texture
             icons = {},
             offset = stance.offset,
             isStance = true,
@@ -318,10 +346,11 @@ function Placement:CreateFrame()
         end
     end
     
-    -- Row labels (stance names and modifier icons)
+    -- Row labels (stance icons with text and modifier icons)
     -- Position them inside the frame, to the left of the buttons
-    local labelColumnWidth = 80  -- Space for stance names and modifier icons
+    local labelColumnWidth = 80  -- Space for stance icons and modifier icons
     local NUM_PAGES = table.getn(self.PAGE_INFO)
+    local STANCE_ICON_SIZE = 28  -- Size for stance/form icons
     
     for page = 1, NUM_PAGES do
         local pageInfo = self.PAGE_INFO[page]
@@ -335,13 +364,36 @@ function Placement:CreateFrame()
         labelContainer:SetHeight(BUTTON_SIZE)
         labelContainer:SetPoint("CENTER", frame, "TOPLEFT", FRAME_PADDING + (labelColumnWidth / 2), rowCenterY)
         
-        -- For stance pages, show text label
-        if pageInfo.isStance and pageInfo.text and pageInfo.text ~= "" then
-            local stanceLabel = labelContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            stanceLabel:SetPoint("CENTER", labelContainer, "CENTER", 0, 0)
-            stanceLabel:SetText(pageInfo.text)
-            stanceLabel:SetTextColor(1, 0.82, 0, 1)  -- Gold color for stance names
-            labelContainer.stanceLabel = stanceLabel
+        -- For stance pages, show icon with text below
+        if pageInfo.isStance then
+            if pageInfo.texture then
+                -- Create stance icon (positioned above center)
+                local stanceIcon = labelContainer:CreateTexture(nil, "OVERLAY")
+                stanceIcon:SetWidth(STANCE_ICON_SIZE)
+                stanceIcon:SetHeight(STANCE_ICON_SIZE)
+                stanceIcon:SetTexture(pageInfo.texture)
+                stanceIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)  -- Slight inset to remove border
+                stanceIcon:SetPoint("TOP", labelContainer, "TOP", 0, 0)
+                labelContainer.stanceIcon = stanceIcon
+                
+                -- Create text label below the icon
+                if pageInfo.text and pageInfo.text ~= "" then
+                    local stanceLabel = labelContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    stanceLabel:SetPoint("TOP", stanceIcon, "BOTTOM", 0, -2)
+                    stanceLabel:SetText(pageInfo.text)
+                    stanceLabel:SetTextColor(1, 0.82, 0, 1)  -- Gold color for stance names
+                    stanceLabel:SetWidth(labelColumnWidth - 5)
+                    stanceLabel:SetJustifyH("CENTER")
+                    labelContainer.stanceLabel = stanceLabel
+                end
+            elseif pageInfo.text and pageInfo.text ~= "" then
+                -- Fallback to text only if no texture
+                local stanceLabel = labelContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                stanceLabel:SetPoint("CENTER", labelContainer, "CENTER", 0, 0)
+                stanceLabel:SetText(pageInfo.text)
+                stanceLabel:SetTextColor(1, 0.82, 0, 1)  -- Gold color for stance names
+                labelContainer.stanceLabel = stanceLabel
+            end
         end
         
         -- For modifier pages, show icons
@@ -987,16 +1039,19 @@ function Placement:UpdateButtonVisibility()
 end
 
 function Placement:Show()
-    -- Check if we need to rebuild (stances may have changed)
+    -- Check if we need to rebuild (number of forms may have changed)
     local currentNumForms = GetNumShapeshiftForms() or 0
+    
     if self.frame and self.lastNumForms ~= currentNumForms then
-        -- Stances changed, need to rebuild
+        -- Number of forms changed, need to rebuild
         self.frame:Hide()
         self.frame = nil
         self.PAGE_INFO = nil
         self.buttons = nil
         self.buttonsByPage = nil
+        CE_Debug("Placement: Rebuilding due to form count change")
     end
+    
     self.lastNumForms = currentNumForms
     
     if not self.frame then
@@ -1055,9 +1110,17 @@ end
 -- ============================================================================
 
 function Placement:Initialize()
-    -- Event frame creation removed - placement frame now only shows manually
-    -- Auto-show on cursor update has been disabled
-    -- Frame can only be opened from config menu or via Placement:Show() explicitly
+    -- Create event frame to detect when forms change (e.g., learning new forms)
+    if not self.eventFrame then
+        self.eventFrame = CreateFrame("Frame", "CEPlacementEventFrame", UIParent)
+        self.eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
+        self.eventFrame:SetScript("OnEvent", function()
+            -- Force rebuild on next show if number of forms changed
+            if Placement.frame and Placement.lastNumForms then
+                Placement.lastNumForms = -1
+            end
+        end)
+    end
     
     CE_Debug("Placement module initialized")
 end
