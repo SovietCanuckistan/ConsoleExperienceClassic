@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.3](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.14.2...v0.14.3) (2026-01-13)
+
+
+### Bug Fixes
+
+* correct settings initialization and fix proxied actions ([07a6db6](https://github.com/pepordev/ConsoleExperienceClassic/commit/07a6db69d26f262ab3316c1ad06ba24301cc4e58))
+
 ## [0.14.2](https://github.com/pepordev/ConsoleExperienceClassic/compare/v0.14.1...v0.14.2) (2026-01-13)
 
 
