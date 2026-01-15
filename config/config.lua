@@ -3095,7 +3095,18 @@ StaticPopupDialogs["CE_CREATE_PROFILE"] = {
         local editBox = getglobal("StaticPopup1EditBox")
         if editBox then
             editBox:SetText("")
-            editBox:SetFocus()
+            -- If virtual keyboard is enabled, show it automatically
+            local config = ConsoleExperience.config
+            if config and config:Get("keyboardEnabled") and ConsoleExperience.keyboard then
+                -- Use a small delay to ensure editbox is fully created and focused
+                local showKeyboardFrame = CreateFrame("Frame")
+                showKeyboardFrame:SetScript("OnUpdate", function()
+                    this:SetScript("OnUpdate", nil)
+                    if editBox and editBox:IsVisible() then
+                        ConsoleExperience.keyboard:Show(editBox)
+                    end
+                end)
+            end
         end
     end,
     timeout = 0,
@@ -3148,7 +3159,18 @@ StaticPopupDialogs["CE_CLONE_PROFILE"] = {
         local editBox = getglobal("StaticPopup1EditBox")
         if editBox then
             editBox:SetText("")
-            editBox:SetFocus()
+            -- If virtual keyboard is enabled, show it automatically
+            local config = ConsoleExperience.config
+            if config and config:Get("keyboardEnabled") and ConsoleExperience.keyboard then
+                -- Use a small delay to ensure editbox is fully created and focused
+                local showKeyboardFrame = CreateFrame("Frame")
+                showKeyboardFrame:SetScript("OnUpdate", function()
+                    this:SetScript("OnUpdate", nil)
+                    if editBox and editBox:IsVisible() then
+                        ConsoleExperience.keyboard:Show(editBox)
+                    end
+                end)
+            end
         end
     end,
     timeout = 0,
