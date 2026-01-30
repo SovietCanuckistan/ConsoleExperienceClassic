@@ -42,6 +42,20 @@
     <Binding name="CE_ACTION_39">ConsoleExperience_ActionButton(39)</Binding>
     <Binding name="CE_ACTION_40">ConsoleExperience_ActionButton(40)</Binding>
     
+    <!-- Left Touch Bar Bindings -->
+    <Binding name="CE_ACTION_41" header="CELEFTBAR">ConsoleExperience_ActionButton(41)</Binding>
+    <Binding name="CE_ACTION_42">ConsoleExperience_ActionButton(42)</Binding>
+    <Binding name="CE_ACTION_43">ConsoleExperience_ActionButton(43)</Binding>
+    <Binding name="CE_ACTION_44">ConsoleExperience_ActionButton(44)</Binding>
+    <Binding name="CE_ACTION_45">ConsoleExperience_ActionButton(45)</Binding>
+    
+    <!-- Right Touch Bar Bindings -->
+    <Binding name="CE_ACTION_46" header="CERIGHTBAR">ConsoleExperience_ActionButton(46)</Binding>
+    <Binding name="CE_ACTION_47">ConsoleExperience_ActionButton(47)</Binding>
+    <Binding name="CE_ACTION_48">ConsoleExperience_ActionButton(48)</Binding>
+    <Binding name="CE_ACTION_49">ConsoleExperience_ActionButton(49)</Binding>
+    <Binding name="CE_ACTION_50">ConsoleExperience_ActionButton(50)</Binding>
+    
     <!-- Cursor Navigation Bindings -->
     <Binding name="CE_CURSOR_MOVE_UP" header="CECURSOR">CE_MoveCursor("UP")</Binding>
     <Binding name="CE_CURSOR_MOVE_DOWN">CE_MoveCursor("DOWN")</Binding>

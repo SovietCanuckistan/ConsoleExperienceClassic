@@ -197,6 +197,10 @@ ConsoleExperience_translation["esES"] = {
     
     -- Title
     ["Console Experience"] = "Experiencia de Consola",
+    ["CE Left Touch Bar"] = "CE Barra Táctil Izquierda",
+    ["CE Right Touch Bar"] = "CE Barra Táctil Derecha",
+    ["Left Touch Bar Button"] = "Botón Barra Táctil Izquierda",
+    ["Right Touch Bar Button"] = "Botón Barra Táctil Derecha",
     -- Warrior Stances
     ["Battle Stance"] = "Actitud de Batalla",
     ["Defensive Stance"] = "Actitud Defensiva",

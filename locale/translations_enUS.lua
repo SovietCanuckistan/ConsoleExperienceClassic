@@ -197,6 +197,10 @@ ConsoleExperience_translation["enUS"] = {
     
     -- Title
     ["Console Experience"] = "Console Experience",
+    ["CE Left Touch Bar"] = "CE Left Touch Bar",
+    ["CE Right Touch Bar"] = "CE Right Touch Bar",
+    ["Left Touch Bar Button"] = "Left Touch Bar Button",
+    ["Right Touch Bar Button"] = "Right Touch Bar Button",
     -- Warrior Stances
     ["Battle Stance"] = "Battle Stance",
     ["Defensive Stance"] = "Defensive Stance",

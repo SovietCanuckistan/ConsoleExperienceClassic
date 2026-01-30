@@ -197,6 +197,10 @@ ConsoleExperience_translation["zhTW"] = {
     
     -- Title
     ["Console Experience"] = "手柄設定",
+    ["CE Left Touch Bar"] = "CE 左側觸控列",
+    ["CE Right Touch Bar"] = "CE 右側觸控列",
+    ["Left Touch Bar Button"] = "左側觸控列按鈕",
+    ["Right Touch Bar Button"] = "右側觸控列按鈕",
     -- Warrior Stances
     ["Battle Stance"] = "戰鬥姿態",
     ["Defensive Stance"] = "防禦姿態",

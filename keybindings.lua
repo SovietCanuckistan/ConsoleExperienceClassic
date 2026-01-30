@@ -27,6 +27,8 @@ end
 
 -- Binding header
 _G["BINDING_HEADER_CONSOLEEXPERIENCE"] = L("Console Experience")
+_G["BINDING_HEADER_CELEFTBAR"] = L("CE Left Touch Bar")
+_G["BINDING_HEADER_CERIGHTBAR"] = L("CE Right Touch Bar")
 
 -- Controller button names for each position (1-10)
 local buttonNames = {
@@ -57,6 +59,18 @@ for i = 1, 40 do
     local buttonName = buttonNames[buttonIndex]
     local modifier = modifierPrefixes[page]
     _G["BINDING_NAME_CE_ACTION_" .. i] = L("Action") .. i .. " (" .. modifier .. buttonName .. ")"
+end
+
+-- Create binding names for left touch bar (slots 41-45)
+for i = 41, 45 do
+    local buttonIndex = i - 40  -- Button 1-5 on left bar
+    _G["BINDING_NAME_CE_ACTION_" .. i] = L("Left Touch Bar Button") .. " " .. buttonIndex
+end
+
+-- Create binding names for right touch bar (slots 46-50)
+for i = 46, 50 do
+    local buttonIndex = i - 45  -- Button 1-5 on right bar
+    _G["BINDING_NAME_CE_ACTION_" .. i] = L("Right Touch Bar Button") .. " " .. buttonIndex
 end
 
 -- Cursor header and binding names

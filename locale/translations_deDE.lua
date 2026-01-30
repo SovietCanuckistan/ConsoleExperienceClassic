@@ -197,6 +197,10 @@ ConsoleExperience_translation["deDE"] = {
     
     -- Title
     ["Console Experience"] = "Konsolen-Erlebnis",
+    ["CE Left Touch Bar"] = "CE Linke Touch-Leiste",
+    ["CE Right Touch Bar"] = "CE Rechte Touch-Leiste",
+    ["Left Touch Bar Button"] = "Linke Touch-Leiste Taste",
+    ["Right Touch Bar Button"] = "Rechte Touch-Leiste Taste",
     -- Warrior Stances
     ["Battle Stance"] = "Kampfhaltung",
     ["Defensive Stance"] = "Verteidigungshaltung",
