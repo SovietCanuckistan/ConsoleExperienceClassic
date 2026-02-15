@@ -677,9 +677,7 @@ function Proxied:ApplyAllBindings()
     -- (CE_ACTION_X from initial setup, or user customizations from Blizzard UI)
     if ConsoleExperienceDB and ConsoleExperienceDB.proxiedActions then
         for slot, bindingID in pairs(ConsoleExperienceDB.proxiedActions) do
-            if bindingID then
-                self:ApplySlotBinding(slot)
-            end
+            self:ApplySlotBinding(slot)
         end
     end
     

@@ -267,7 +267,7 @@ function ConsoleExperienceKeybindings:Initialize()
     -- Using a saved variable flag instead of checking CE_ACTION_1 binding,
     -- because proxied actions (like JUMP on slot 1) replace the CE_ACTION_1
     -- binding key, which would falsely trigger SetupDefaultBindings on every login
-    if not ConsoleExperienceDB.keybindingsInitialized then
+    if not ConsoleExperienceDB or not ConsoleExperienceDB.keybindingsInitialized then
         CE_Debug("First install detected, setting up default keybindings...")
         self:SetupDefaultBindings()
         ConsoleExperienceDB.keybindingsInitialized = true
