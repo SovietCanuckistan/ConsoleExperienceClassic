@@ -263,14 +263,16 @@ function ConsoleExperienceKeybindings:SetupDefaultBindings()
 end
 
 function ConsoleExperienceKeybindings:Initialize()
-    -- Check if CE_ACTION_1 binding exists (meaning Bindings.xml loaded correctly)
-    local testKey = GetBindingKey("CE_ACTION_1")
-    
-    if testKey then
-        CE_Debug("Keybindings loaded! CE_ACTION_1 bound to: " .. testKey)
-    else
-        CE_Debug("CE_ACTION_1 not bound yet, setting up defaults...")
+    -- Only set up default bindings on truly first install
+    -- Using a saved variable flag instead of checking CE_ACTION_1 binding,
+    -- because proxied actions (like JUMP on slot 1) replace the CE_ACTION_1
+    -- binding key, which would falsely trigger SetupDefaultBindings on every login
+    if not ConsoleExperienceDB.keybindingsInitialized then
+        CE_Debug("First install detected, setting up default keybindings...")
         self:SetupDefaultBindings()
+        ConsoleExperienceDB.keybindingsInitialized = true
+    else
+        CE_Debug("Keybindings already initialized, skipping default setup")
     end
     
     -- Initialize and apply proxied actions (replaces old useAForJump system)
