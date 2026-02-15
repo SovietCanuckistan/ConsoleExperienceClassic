@@ -69,6 +69,7 @@ Cursor.navigationState = {
     distances = {},
     activeFrames = {},
     enabled = false,
+    dropdownFrame = nil,  -- When set, scopes button collection to this frame only (for dropdown navigation)
 }
 
 -- Store frame references
@@ -269,6 +270,13 @@ function Cursor:CollectVisibleButtons(frame, buttons)
 end
 
 function Cursor:CollectAllVisibleButtons()
+    -- If navigating within a dropdown, only collect buttons from the dropdown frame
+    -- This avoids expensive recursive scans of all active frames (e.g., config panel)
+    local dropdownFrame = self.navigationState.dropdownFrame
+    if dropdownFrame and dropdownFrame:IsVisible() then
+        return self:CollectVisibleButtons(dropdownFrame)
+    end
+    
     local allButtons = {}
     
     for frame, _ in pairs(self.navigationState.activeFrames) do
@@ -607,6 +615,7 @@ function Cursor:ClearNavigationState()
     self.navigationState.closest = {}
     self.navigationState.distances = {}
     self.navigationState.activeFrames = {}
+    self.navigationState.dropdownFrame = nil
 end
 
 function Cursor:EnsureOnTop(frame)
