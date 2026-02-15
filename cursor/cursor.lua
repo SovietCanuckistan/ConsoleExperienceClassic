@@ -582,17 +582,17 @@ function Cursor:RefreshFrame()
     local frame = self.navigationState.currentFrame
     if not frame then return end
     
-    -- Recollect all visible buttons
-    self.navigationState.allButtons = self:CollectAllVisibleButtons()
-    
     -- If we have a current button, just update navigation state and cursor position
     -- Don't call MoveCursorToButton again (it would trigger save/restore cycle)
     if self.navigationState.currentButton then
         local button = self.navigationState.currentButton
-        -- Update navigation state without triggering bindings again
+        -- Update navigation state (this collects all visible buttons internally)
         self:UpdateNavigationState(button, self.navigationState.currentFrame)
         -- Just update cursor position visually
         self:UpdateCursorPosition(button)
+    else
+        -- No current button, just update the button collection
+        self.navigationState.allButtons = self:CollectAllVisibleButtons()
     end
 end
 

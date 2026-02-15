@@ -293,13 +293,14 @@ function Hooks:HookDropdownFrame(dropdown)
         Cursor.frame:SetFrameLevel(dropdownLevel + 100)
         Cursor.highlight:SetFrameLevel(dropdownLevel + 99)
         
-        -- Refresh button collection to include dropdown buttons
-        Cursor:RefreshFrame()
-        
         -- Move cursor to first dropdown button if available
+        -- MoveCursorToButton handles refreshing the button collection internally
         local firstButton = Cursor:FindFirstVisibleButton(dropdown)
         if firstButton then
             Cursor:MoveCursorToButton(firstButton)
+        else
+            -- No buttons found, just refresh to update navigation state
+            Cursor:RefreshFrame()
         end
     end)
     
@@ -318,10 +319,8 @@ function Hooks:HookDropdownFrame(dropdown)
         Cursor.frame:SetFrameLevel(1001)
         Cursor.highlight:SetFrameLevel(1000)
         
-        -- Refresh button collection
-        Cursor:RefreshFrame()
-        
         -- Move cursor back to the frame that opened the dropdown if available
+        -- MoveCursorToButton handles refreshing the button collection internally
         local mostRecentFrame = nil
         for activeFrame, _ in pairs(Cursor.navigationState.activeFrames) do
             if activeFrame:IsVisible() and activeFrame ~= dropdown then
@@ -334,7 +333,11 @@ function Hooks:HookDropdownFrame(dropdown)
             local firstButton = Cursor:FindFirstVisibleButton(mostRecentFrame)
             if firstButton then
                 Cursor:MoveCursorToButton(firstButton)
+            else
+                Cursor:RefreshFrame()
             end
+        else
+            Cursor:RefreshFrame()
         end
     end)
     
