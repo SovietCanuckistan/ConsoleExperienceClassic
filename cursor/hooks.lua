@@ -289,6 +289,12 @@ function Hooks:HookDropdownFrame(dropdown)
             return
         end
         
+        -- Cancel any pending deferred cursor restoration from a previous dropdown close
+        -- This prevents the previous OnHide handler from overriding our navigation
+        if Hooks._dropdownHideFrame then
+            Hooks._dropdownHideFrame:SetScript("OnUpdate", nil)
+        end
+        
         -- Add dropdown to active frames so its buttons are navigable
         local Cursor = ConsoleExperience.cursor
         Cursor.navigationState.activeFrames[dropdown] = true

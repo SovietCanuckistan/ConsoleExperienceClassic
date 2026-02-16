@@ -422,11 +422,6 @@ function Cursor:UpdateCursorPosition(button)
         self.highlight:SetWidth(width + 10)
         self.highlight:SetHeight(height + 10)
         self.highlight:Show()
-        
-        -- Show tooltip
-        if ConsoleExperience.cursor.tooltip then
-            ConsoleExperience.cursor.tooltip:ShowButtonTooltip(button)
-        end
     else
         self.frame:Hide()
         self.highlight:Hide()
