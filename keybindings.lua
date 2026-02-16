@@ -263,16 +263,24 @@ function ConsoleExperienceKeybindings:SetupDefaultBindings()
 end
 
 function ConsoleExperienceKeybindings:Initialize()
-    -- Only set up default bindings on truly first install
-    -- Using a saved variable flag instead of checking CE_ACTION_1 binding,
-    -- because proxied actions (like JUMP on slot 1) replace the CE_ACTION_1
-    -- binding key, which would falsely trigger SetupDefaultBindings on every login
-    if not ConsoleExperienceDB or not ConsoleExperienceDB.keybindingsInitialized then
-        CE_Debug("First install detected, setting up default keybindings...")
+    -- Check if any CE_ACTION binding already has a key assigned.
+    -- We scan all 40 slots because some may be proxied to system actions (like JUMP),
+    -- which replaces their CE_ACTION_X key. On a fresh install, none will have keys.
+    -- This is more robust than a saved variable flag because it directly reflects
+    -- the actual WoW binding state and can't get out of sync.
+    local hasExistingBindings = false
+    for i = 1, 40 do
+        if GetBindingKey("CE_ACTION_" .. i) then
+            hasExistingBindings = true
+            break
+        end
+    end
+    
+    if not hasExistingBindings then
+        CE_Debug("No CE bindings found, setting up defaults...")
         self:SetupDefaultBindings()
-        ConsoleExperienceDB.keybindingsInitialized = true
     else
-        CE_Debug("Keybindings already initialized, skipping default setup")
+        CE_Debug("Existing CE bindings found, skipping default setup")
     end
     
     -- Initialize and apply proxied actions (replaces old useAForJump system)
