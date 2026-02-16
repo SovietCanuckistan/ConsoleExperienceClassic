@@ -520,16 +520,13 @@ function CE_ClickCursor(mouseButton)
         element:Click(mouseButton)
     end
     
-    -- Skip refresh if a dropdown just opened (its OnShow handler already updated navigation)
-    if not Cursor.navigationState.dropdownFrame then
-        -- Refresh frame state after click
-        Cursor:RefreshFrame()
-        
-        -- Show tooltip again if element is still visible
-        if Cursor.navigationState.currentButton and Cursor.navigationState.currentButton:IsVisible() then
-            if Cursor.tooltip then
-                Cursor.tooltip:ShowButtonTooltip(Cursor.navigationState.currentButton)
-            end
+    -- Refresh frame state after click
+    Cursor:RefreshFrame()
+    
+    -- Show tooltip again if element is still visible
+    if Cursor.navigationState.currentButton and Cursor.navigationState.currentButton:IsVisible() then
+        if Cursor.tooltip then
+            Cursor.tooltip:ShowButtonTooltip(Cursor.navigationState.currentButton)
         end
     end
 end

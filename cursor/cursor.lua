@@ -69,7 +69,6 @@ Cursor.navigationState = {
     distances = {},
     activeFrames = {},
     enabled = false,
-    dropdownFrame = nil,  -- When set, scopes button collection to this frame only (for dropdown navigation)
 }
 
 -- Store frame references
@@ -270,13 +269,6 @@ function Cursor:CollectVisibleButtons(frame, buttons)
 end
 
 function Cursor:CollectAllVisibleButtons()
-    -- If navigating within a dropdown, only collect buttons from the dropdown frame
-    -- This avoids expensive recursive scans of all active frames (e.g., config panel)
-    local dropdownFrame = self.navigationState.dropdownFrame
-    if dropdownFrame and dropdownFrame:IsVisible() then
-        return self:CollectVisibleButtons(dropdownFrame)
-    end
-    
     local allButtons = {}
     
     for frame, _ in pairs(self.navigationState.activeFrames) do
@@ -422,6 +414,11 @@ function Cursor:UpdateCursorPosition(button)
         self.highlight:SetWidth(width + 10)
         self.highlight:SetHeight(height + 10)
         self.highlight:Show()
+        
+        -- Show tooltip
+        if ConsoleExperience.cursor.tooltip then
+            ConsoleExperience.cursor.tooltip:ShowButtonTooltip(button)
+        end
     else
         self.frame:Hide()
         self.highlight:Hide()
@@ -585,17 +582,17 @@ function Cursor:RefreshFrame()
     local frame = self.navigationState.currentFrame
     if not frame then return end
     
+    -- Recollect all visible buttons
+    self.navigationState.allButtons = self:CollectAllVisibleButtons()
+    
     -- If we have a current button, just update navigation state and cursor position
     -- Don't call MoveCursorToButton again (it would trigger save/restore cycle)
     if self.navigationState.currentButton then
         local button = self.navigationState.currentButton
-        -- Update navigation state (this collects all visible buttons internally)
+        -- Update navigation state without triggering bindings again
         self:UpdateNavigationState(button, self.navigationState.currentFrame)
         -- Just update cursor position visually
         self:UpdateCursorPosition(button)
-    else
-        -- No current button, just update the button collection
-        self.navigationState.allButtons = self:CollectAllVisibleButtons()
     end
 end
 
@@ -610,7 +607,6 @@ function Cursor:ClearNavigationState()
     self.navigationState.closest = {}
     self.navigationState.distances = {}
     self.navigationState.activeFrames = {}
-    self.navigationState.dropdownFrame = nil
 end
 
 function Cursor:EnsureOnTop(frame)

@@ -289,20 +289,10 @@ function Hooks:HookDropdownFrame(dropdown)
             return
         end
         
-        -- Cancel any pending deferred cursor restoration from a previous dropdown close
-        -- This prevents the previous OnHide handler from overriding our navigation
-        if Hooks._dropdownHideFrame then
-            Hooks._dropdownHideFrame:SetScript("OnUpdate", nil)
-        end
-        
         -- Add dropdown to active frames so its buttons are navigable
         local Cursor = ConsoleExperience.cursor
         Cursor.navigationState.activeFrames[dropdown] = true
         CE_Debug("Dropdown menu opened: " .. (dropdown:GetName() or "unnamed"))
-        
-        -- Scope button collection to the dropdown frame only
-        -- This avoids expensive recursive scans of all other active frames (e.g., config panel)
-        Cursor.navigationState.dropdownFrame = dropdown
         
         -- Ensure cursor appears above dropdown menu
         -- Get dropdown's frame level and set cursor higher
@@ -310,14 +300,13 @@ function Hooks:HookDropdownFrame(dropdown)
         Cursor.frame:SetFrameLevel(dropdownLevel + 100)
         Cursor.highlight:SetFrameLevel(dropdownLevel + 99)
         
+        -- Refresh button collection to include dropdown buttons
+        Cursor:RefreshFrame()
+        
         -- Move cursor to first dropdown button if available
-        -- MoveCursorToButton handles refreshing the button collection internally
         local firstButton = Cursor:FindFirstVisibleButton(dropdown)
         if firstButton then
             Cursor:MoveCursorToButton(firstButton)
-        else
-            -- No buttons found, just refresh to update navigation state
-            Cursor:RefreshFrame()
         end
     end)
     
@@ -333,45 +322,33 @@ function Hooks:HookDropdownFrame(dropdown)
             return
         end
         
-        -- Remove dropdown from active frames and clear dropdown scope
+        -- Remove dropdown from active frames
         local Cursor = ConsoleExperience.cursor
         Cursor.navigationState.activeFrames[dropdown] = nil
-        Cursor.navigationState.dropdownFrame = nil
         CE_Debug("Dropdown menu closed: " .. (dropdown:GetName() or "unnamed"))
         
         -- Restore cursor frame levels to default
         Cursor.frame:SetFrameLevel(1001)
         Cursor.highlight:SetFrameLevel(1000)
         
-        -- Defer cursor restoration to the next frame to avoid an expensive
-        -- synchronous all-frames collection during the dropdown hide
-        if not Hooks._dropdownHideFrame then
-            Hooks._dropdownHideFrame = CreateFrame("Frame")
+        -- Refresh button collection
+        Cursor:RefreshFrame()
+        
+        -- Move cursor back to the frame that opened the dropdown if available
+        local mostRecentFrame = nil
+        for activeFrame, _ in pairs(Cursor.navigationState.activeFrames) do
+            if activeFrame:IsVisible() and activeFrame ~= dropdown then
+                mostRecentFrame = activeFrame
+                break
+            end
         end
-        Hooks._dropdownHideFrame:SetScript("OnUpdate", function()
-            this:SetScript("OnUpdate", nil)
-            
-            local Cursor = ConsoleExperience.cursor
-            -- Move cursor back to the frame that opened the dropdown if available
-            local mostRecentFrame = nil
-            for activeFrame, _ in pairs(Cursor.navigationState.activeFrames) do
-                if activeFrame:IsVisible() and activeFrame ~= dropdown then
-                    mostRecentFrame = activeFrame
-                    break
-                end
+        
+        if mostRecentFrame then
+            local firstButton = Cursor:FindFirstVisibleButton(mostRecentFrame)
+            if firstButton then
+                Cursor:MoveCursorToButton(firstButton)
             end
-            
-            if mostRecentFrame then
-                local firstButton = Cursor:FindFirstVisibleButton(mostRecentFrame)
-                if firstButton then
-                    Cursor:MoveCursorToButton(firstButton)
-                else
-                    Cursor:RefreshFrame()
-                end
-            else
-                Cursor:RefreshFrame()
-            end
-        end)
+        end
     end)
     
     dropdown.ceHooked = true
